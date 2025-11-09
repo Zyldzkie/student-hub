@@ -79,6 +79,21 @@ class Database
       )
     SQL
     
+    # Create notes table
+    db.execute <<-SQL
+      CREATE TABLE IF NOT EXISTS notes (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id INTEGER NOT NULL,
+        profile_id INTEGER,
+        title TEXT NOT NULL,
+        content TEXT NOT NULL,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+        FOREIGN KEY (profile_id) REFERENCES semester_profiles(id) ON DELETE CASCADE
+      )
+    SQL
+    
     # Create indexes for better performance
     db.execute "CREATE INDEX IF NOT EXISTS idx_gwa_subjects_user_id ON gwa_subjects(user_id)"
     db.execute "CREATE INDEX IF NOT EXISTS idx_gwa_subjects_profile_id ON gwa_subjects(profile_id)"
@@ -87,6 +102,8 @@ class Database
     db.execute "CREATE INDEX IF NOT EXISTS idx_study_sessions_user_id ON study_sessions(user_id)"
     db.execute "CREATE INDEX IF NOT EXISTS idx_study_sessions_profile_id ON study_sessions(profile_id)"
     db.execute "CREATE INDEX IF NOT EXISTS idx_semester_profiles_user_id ON semester_profiles(user_id)"
+    db.execute "CREATE INDEX IF NOT EXISTS idx_notes_user_id ON notes(user_id)"
+    db.execute "CREATE INDEX IF NOT EXISTS idx_notes_profile_id ON notes(profile_id)"
     
     # Migration: Add missing columns to existing tables
     migrate_schema(db)

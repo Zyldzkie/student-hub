@@ -137,7 +137,7 @@ end
 
 # Protected routes - require login
 before do
-  protected_paths = ['/dashboard', '/grade-calculator', '/todo-list', '/study-logger']
+  protected_paths = ['/dashboard', '/grade-calculator', '/todo-list', '/study-logger', '/notes']
   api_path = request.path.start_with?('/api/')
   
   if protected_paths.include?(request.path) || api_path
@@ -172,6 +172,10 @@ end
 # Study Logger route
 get '/study-logger' do
   erb :study_logger
+end
+
+get '/notes' do
+  erb :notes
 end
 
 # API routes for GWA Calculator
@@ -336,6 +340,67 @@ delete '/api/study-sessions/:id' do
   { success: true, sessions: get_user_study_sessions }.to_json
 end
 
+# API routes for Notes
+get '/api/notes' do
+  content_type :json
+  { notes: get_user_notes }.to_json
+end
+
+post '/api/notes' do
+  content_type :json
+  db = Database.get_db
+  data = JSON.parse(request.body.read)
+  
+  db.execute("INSERT INTO notes (user_id, profile_id, title, content, updated_at) VALUES (?, ?, ?, ?, ?)",
+             current_user['id'], active_profile_id, data['title'], data['content'], Time.now.to_s)
+  
+  { success: true, notes: get_user_notes }.to_json
+end
+
+put '/api/notes/:id' do
+  content_type :json
+  db = Database.get_db
+  id = params[:id].to_i
+  data = JSON.parse(request.body.read)
+  
+  # Verify note belongs to user
+  note = db.execute("SELECT * FROM notes WHERE id = ? AND user_id = ?", 
+                   id, current_user['id']).first
+  return { success: false, error: 'Note not found' }.to_json unless note
+  
+  updates = []
+  values = []
+  
+  if data['title']
+    updates << "title = ?"
+    values << data['title']
+  end
+  
+  if data['content']
+    updates << "content = ?"
+    values << data['content']
+  end
+  
+  updates << "updated_at = ?"
+  values << Time.now.to_s
+  values << id
+  values << current_user['id']
+  
+  db.execute("UPDATE notes SET #{updates.join(', ')} WHERE id = ? AND user_id = ?", *values)
+  
+  { success: true, notes: get_user_notes }.to_json
+end
+
+delete '/api/notes/:id' do
+  content_type :json
+  db = Database.get_db
+  id = params[:id].to_i
+  
+  db.execute("DELETE FROM notes WHERE id = ? AND user_id = ?", id, current_user['id'])
+  
+  { success: true, notes: get_user_notes }.to_json
+end
+
 # API route for Recent Activity
 get '/api/recent-activity' do
   content_type :json
@@ -493,6 +558,21 @@ def get_user_study_sessions
   }
 end
 
+def get_user_notes
+  db = Database.get_db
+  notes = db.execute("SELECT * FROM notes WHERE user_id = ? AND profile_id = ? ORDER BY updated_at DESC", 
+                     current_user['id'], active_profile_id)
+  notes.map { |n|
+    {
+      'id' => n['id'],
+      'title' => n['title'],
+      'content' => n['content'],
+      'created_at' => n['created_at'],
+      'updated_at' => n['updated_at']
+    }
+  }
+end
+
 def get_user_profiles
   db = Database.get_db
   profiles = db.execute("SELECT * FROM semester_profiles WHERE user_id = ? ORDER BY created_at DESC", 
@@ -550,6 +630,20 @@ def get_recent_activities
       'description' => "Completed #{minutes} min study session: #{session['subject']}",
       'timestamp' => session['created_at'],
       'icon' => 'fas fa-book-open'
+    }
+  end
+  
+  # Get recent notes (last 10)
+  notes = db.execute("SELECT * FROM notes WHERE user_id = ? AND profile_id = ? ORDER BY updated_at DESC LIMIT 10", 
+                    current_user['id'], active_profile_id)
+  notes.each do |note|
+    action = note['updated_at'] != note['created_at'] ? 'updated' : 'created'
+    activities << {
+      'type' => 'note',
+      'action' => action,
+      'description' => action == 'updated' ? "Updated note: #{note['title']}" : "Created note: #{note['title']}",
+      'timestamp' => note['updated_at'],
+      'icon' => 'fas fa-sticky-note'
     }
   end
   

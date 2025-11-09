@@ -55,6 +55,12 @@
                         <span class="nav-text">Study Logger</span>
                     </a>
                 </li>
+                <li>
+                    <a href="/notes" class="nav-item <%= 'active' if request.path == '/notes' %>">
+                        <i class="fas fa-sticky-note nav-icon"></i>
+                        <span class="nav-text">Notes</span>
+                    </a>
+                </li>
             </ul>
             <div class="sidebar-footer">
                 <form method="post" action="/logout" style="margin: 0;">
