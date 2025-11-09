@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>StudentHub - <%= @title || 'Your Academic Assistant' %></title>
+    <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+    <div class="app-container">
+        <!-- Left Navigation Bar -->
+        <nav class="sidebar">
+            <div class="sidebar-header">
+                <div class="logo">
+                    <span class="logo-icon">📚</span>
+                    <div class="logo-text">
+                        <h1>StudentHub</h1>
+                        <p>Your Academic Assistant</p>
+                    </div>
+                </div>
+            </div>
+            <ul class="nav-menu">
+                <li>
+                    <a href="/dashboard" class="nav-item <%= 'active' if request.path == '/dashboard' %>">
+                        <span class="nav-icon">🎓</span>
+                        <span class="nav-text">Dashboard</span>
+                    </a>
+                </li>
+                <li>
+                    <a href="/grade-calculator" class="nav-item <%= 'active' if request.path == '/grade-calculator' %>">
+                        <span class="nav-icon">🧮</span>
+                        <span class="nav-text">Grade Calculator</span>
+                    </a>
+                </li>
+                <li>
+                    <a href="/todo-list" class="nav-item <%= 'active' if request.path == '/todo-list' %>">
+                        <span class="nav-icon">✓</span>
+                        <span class="nav-text">To-Do List</span>
+                    </a>
+                </li>
+                <li>
+                    <a href="/study-logger" class="nav-item <%= 'active' if request.path == '/study-logger' %>">
+                        <span class="nav-icon">⏰</span>
+                        <span class="nav-text">Study Logger</span>
+                    </a>
+                </li>
+            </ul>
+        </nav>
+
+        <!-- Main Content Area -->
+        <main class="main-content">
+            <%= yield %>
+        </main>
+    </div>
+    <script src="/js/app.js"></script>
+</body>
+</html>
+

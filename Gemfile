@@ -3,10 +3,9 @@
 source "https://rubygems.org"
 
 # Specify your Ruby version here
-ruby ">= 2.7.0"
+ruby "3.4.7"
 
-# Add your gem dependencies here
-# Example:
-# gem "rails", "~> 7.0"
-# gem "sinatra", "~> 2.0"
+# Web framework
+gem "sinatra", "~> 3.0"
+gem "thin", "~> 1.8"
 

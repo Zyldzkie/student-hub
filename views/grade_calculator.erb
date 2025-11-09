@@ -1,0 +1,275 @@
+<% @title = 'Grade Calculator' %>
+<div class="page-header">
+    <div>
+        <h1>Grade Calculator & Predictor</h1>
+        <p class="subtitle">Track your assignments and predict your final grades</p>
+    </div>
+    <button class="btn btn-primary" onclick="showAddClassModal()">
+        <span class="btn-icon">+</span>
+        Add Class
+    </button>
+</div>
+
+<div class="classes-container" id="classes-container">
+    <p class="empty-state">No classes yet. Click "Add Class" to get started!</p>
+</div>
+
+<!-- Add Class Modal -->
+<div id="add-class-modal" class="modal">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h2>Add New Class</h2>
+            <button class="modal-close" onclick="closeAddClassModal()">&times;</button>
+        </div>
+        <form id="add-class-form" onsubmit="addClass(event)">
+            <div class="form-group">
+                <label for="class-name">Class Name</label>
+                <input type="text" id="class-name" required placeholder="e.g., Math, Science">
+            </div>
+            <div class="form-actions">
+                <button type="button" class="btn btn-secondary" onclick="closeAddClassModal()">Cancel</button>
+                <button type="submit" class="btn btn-primary">Add Class</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Add Assignment Modal -->
+<div id="add-assignment-modal" class="modal">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h2>Add Assignment</h2>
+            <button class="modal-close" onclick="closeAddAssignmentModal()">&times;</button>
+        </div>
+        <form id="add-assignment-form" onsubmit="addAssignment(event)">
+            <input type="hidden" id="assignment-class-id">
+            <div class="form-group">
+                <label for="assignment-name">Assignment Name</label>
+                <input type="text" id="assignment-name" required placeholder="e.g., Quiz, Midterm">
+            </div>
+            <div class="form-group">
+                <label for="assignment-weight">Weight (%)</label>
+                <input type="number" id="assignment-weight" required min="0" max="100" step="0.1" placeholder="e.g., 25.5">
+            </div>
+            <div class="form-group">
+                <label for="assignment-score">Score</label>
+                <input type="number" id="assignment-score" min="0" max="100" step="0.1" placeholder="Leave blank if not graded">
+            </div>
+            <div class="form-actions">
+                <button type="button" class="btn btn-secondary" onclick="closeAddAssignmentModal()">Cancel</button>
+                <button type="submit" class="btn btn-primary">Add Assignment</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script>
+    let currentClassId = null;
+
+    document.addEventListener('DOMContentLoaded', function() {
+        loadClasses();
+    });
+
+    function loadClasses() {
+        fetch('/api/classes')
+            .then(res => res.json())
+            .then(data => {
+                renderClasses(data.classes);
+            });
+    }
+
+    function renderClasses(classes) {
+        const container = document.getElementById('classes-container');
+        
+        if (classes.length === 0) {
+            container.innerHTML = '<p class="empty-state">No classes yet. Click "Add Class" to get started!</p>';
+            return;
+        }
+
+        container.innerHTML = classes.map((cls, classIndex) => {
+            const assignments = cls.assignments || [];
+            const totalWeight = assignments.reduce((sum, a) => sum + (parseFloat(a.weight) || 0), 0);
+            const currentGrade = calculateClassGrade(assignments);
+
+            return `
+                <div class="class-card">
+                    <div class="class-header">
+                        <div>
+                            <h3>${escapeHtml(cls.name)}</h3>
+                            <p class="class-summary">${assignments.length} assignments • Total weight: ${totalWeight.toFixed(1)}%</p>
+                        </div>
+                        <div class="class-grade">
+                            <span class="grade-icon">📈</span>
+                            <div>
+                                <div class="grade-value">${currentGrade.toFixed(1)}%</div>
+                                <div class="grade-label">Current Grade</div>
+                            </div>
+                            <button class="icon-btn" onclick="deleteClass(${classIndex})" title="Delete class">
+                                🗑️
+                            </button>
+                        </div>
+                    </div>
+                    <div class="assignments-list">
+                        ${assignments.map((assignment, assignmentIndex) => `
+                            <div class="assignment-item">
+                                <div class="assignment-info">
+                                    <span class="assignment-name">${escapeHtml(assignment.name)}</span>
+                                    <span class="assignment-weight">Weight: ${parseFloat(assignment.weight || 0).toFixed(1)}%</span>
+                                </div>
+                                <div class="assignment-actions">
+                                    <input 
+                                        type="number" 
+                                        class="score-input" 
+                                        value="${assignment.score || ''}" 
+                                        placeholder="0"
+                                        min="0"
+                                        max="100"
+                                        step="0.1"
+                                        onchange="updateAssignmentScore(${classIndex}, ${assignmentIndex}, this.value)"
+                                    >
+                                    <button class="icon-btn" onclick="deleteAssignment(${classIndex}, ${assignmentIndex})" title="Delete assignment">
+                                        🗑️
+                                    </button>
+                                </div>
+                            </div>
+                        `).join('')}
+                        <button class="btn-add-assignment" onclick="showAddAssignmentModal(${classIndex})">
+                            <span class="btn-icon">+</span>
+                            Add Assignment
+                        </button>
+                    </div>
+                </div>
+            `;
+        }).join('');
+    }
+
+    function calculateClassGrade(assignments) {
+        if (assignments.length === 0) return 0;
+        
+        let totalWeight = 0;
+        let weightedSum = 0;
+
+        assignments.forEach(assignment => {
+            const weight = parseFloat(assignment.weight) || 0;
+            const score = parseFloat(assignment.score) || 0;
+            weightedSum += score * weight;
+            totalWeight += weight;
+        });
+
+        return totalWeight > 0 ? weightedSum / totalWeight : 0;
+    }
+
+    function showAddClassModal() {
+        document.getElementById('add-class-modal').style.display = 'flex';
+        document.getElementById('class-name').focus();
+    }
+
+    function closeAddClassModal() {
+        document.getElementById('add-class-modal').style.display = 'none';
+        document.getElementById('add-class-form').reset();
+    }
+
+    function addClass(event) {
+        event.preventDefault();
+        const name = document.getElementById('class-name').value;
+
+        fetch('/api/classes', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ name: name, assignments: [] })
+        })
+        .then(res => res.json())
+        .then(data => {
+            closeAddClassModal();
+            loadClasses();
+        });
+    }
+
+    function showAddAssignmentModal(classId) {
+        currentClassId = classId;
+        document.getElementById('assignment-class-id').value = classId;
+        document.getElementById('add-assignment-modal').style.display = 'flex';
+        document.getElementById('assignment-name').focus();
+    }
+
+    function closeAddAssignmentModal() {
+        document.getElementById('add-assignment-modal').style.display = 'none';
+        document.getElementById('add-assignment-form').reset();
+        currentClassId = null;
+    }
+
+    function addAssignment(event) {
+        event.preventDefault();
+        const classId = parseInt(document.getElementById('assignment-class-id').value);
+        const name = document.getElementById('assignment-name').value;
+        const weight = parseFloat(document.getElementById('assignment-weight').value);
+        const score = document.getElementById('assignment-score').value;
+
+        fetch(`/api/classes/${classId}/assignments`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ name, weight, score: score || 0 })
+        })
+        .then(res => res.json())
+        .then(data => {
+            closeAddAssignmentModal();
+            loadClasses();
+        });
+    }
+
+    function updateAssignmentScore(classId, assignmentId, score) {
+        fetch(`/api/classes/${classId}/assignments/${assignmentId}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ score: parseFloat(score) || 0 })
+        })
+        .then(res => res.json())
+        .then(data => {
+            loadClasses();
+        });
+    }
+
+    function deleteClass(classId) {
+        if (confirm('Are you sure you want to delete this class?')) {
+            fetch(`/api/classes/${classId}`, {
+                method: 'DELETE'
+            })
+            .then(res => res.json())
+            .then(data => {
+                loadClasses();
+            });
+        }
+    }
+
+    function deleteAssignment(classId, assignmentId) {
+        if (confirm('Are you sure you want to delete this assignment?')) {
+            fetch(`/api/classes/${classId}/assignments/${assignmentId}`, {
+                method: 'DELETE'
+            })
+            .then(res => res.json())
+            .then(data => {
+                loadClasses();
+            });
+        }
+    }
+
+    function escapeHtml(text) {
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
+    }
+
+    // Close modals when clicking outside
+    window.onclick = function(event) {
+        const addClassModal = document.getElementById('add-class-modal');
+        const addAssignmentModal = document.getElementById('add-assignment-modal');
+        
+        if (event.target == addClassModal) {
+            closeAddClassModal();
+        }
+        if (event.target == addAssignmentModal) {
+            closeAddAssignmentModal();
+        }
+    }
+</script>
+

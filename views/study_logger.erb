@@ -1,0 +1,213 @@
+<% @title = 'Study Logger' %>
+<div class="page-header">
+    <div>
+        <h1>Study Logger</h1>
+        <p class="subtitle">Track your study sessions and monitor your progress</p>
+    </div>
+    <button class="btn btn-primary" onclick="showAddSessionModal()">
+        <span class="btn-icon">+</span>
+        Log Session
+    </button>
+</div>
+
+<div class="study-stats">
+    <div class="stat-card">
+        <h3>Today</h3>
+        <p class="stat-value" id="today-hours">0</p>
+        <p class="stat-label">hours</p>
+    </div>
+    <div class="stat-card">
+        <h3>This Week</h3>
+        <p class="stat-value" id="week-hours">0</p>
+        <p class="stat-label">hours</p>
+    </div>
+    <div class="stat-card">
+        <h3>This Month</h3>
+        <p class="stat-value" id="month-hours">0</p>
+        <p class="stat-label">hours</p>
+    </div>
+    <div class="stat-card">
+        <h3>Total</h3>
+        <p class="stat-value" id="total-hours">0</p>
+        <p class="stat-label">hours</p>
+    </div>
+</div>
+
+<div class="sessions-container">
+    <h2>Study Sessions</h2>
+    <div class="sessions-list" id="sessions-list">
+        <p class="empty-state">No study sessions logged yet. Click "Log Session" to get started!</p>
+    </div>
+</div>
+
+<!-- Add Session Modal -->
+<div id="add-session-modal" class="modal">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h2>Log Study Session</h2>
+            <button class="modal-close" onclick="closeAddSessionModal()">&times;</button>
+        </div>
+        <form id="add-session-form" onsubmit="addSession(event)">
+            <div class="form-group">
+                <label for="session-subject">Subject</label>
+                <input type="text" id="session-subject" required placeholder="e.g., Math, Science">
+            </div>
+            <div class="form-group">
+                <label for="session-hours">Hours</label>
+                <input type="number" id="session-hours" required min="0.1" max="24" step="0.1" placeholder="e.g., 2.5">
+            </div>
+            <div class="form-group">
+                <label for="session-notes">Notes (optional)</label>
+                <textarea id="session-notes" rows="3" placeholder="What did you study?"></textarea>
+            </div>
+            <div class="form-actions">
+                <button type="button" class="btn btn-secondary" onclick="closeAddSessionModal()">Cancel</button>
+                <button type="submit" class="btn btn-primary">Log Session</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        loadSessions();
+    });
+
+    function loadSessions() {
+        fetch('/api/study-sessions')
+            .then(res => res.json())
+            .then(data => {
+                updateStats(data.sessions);
+                renderSessions(data.sessions);
+            });
+    }
+
+    function updateStats(sessions) {
+        const now = new Date();
+        const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+        const weekStart = new Date(now.setDate(now.getDate() - now.getDay()));
+        weekStart.setHours(0, 0, 0, 0);
+        const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+
+        let todayHours = 0;
+        let weekHours = 0;
+        let monthHours = 0;
+        let totalHours = 0;
+
+        sessions.forEach(session => {
+            const sessionDate = new Date(session.date);
+            const hours = parseFloat(session.hours) || 0;
+            
+            totalHours += hours;
+            if (sessionDate >= monthStart) monthHours += hours;
+            if (sessionDate >= weekStart) weekHours += hours;
+            if (sessionDate >= today) todayHours += hours;
+        });
+
+        document.getElementById('today-hours').textContent = todayHours.toFixed(1);
+        document.getElementById('week-hours').textContent = weekHours.toFixed(1);
+        document.getElementById('month-hours').textContent = monthHours.toFixed(1);
+        document.getElementById('total-hours').textContent = totalHours.toFixed(1);
+    }
+
+    function renderSessions(sessions) {
+        const container = document.getElementById('sessions-list');
+        
+        if (sessions.length === 0) {
+            container.innerHTML = '<p class="empty-state">No study sessions logged yet. Click "Log Session" to get started!</p>';
+            return;
+        }
+
+        // Sort by date (newest first)
+        const sortedSessions = [...sessions].sort((a, b) => {
+            return new Date(b.date) - new Date(a.date);
+        });
+
+        container.innerHTML = sortedSessions.map(session => `
+            <div class="session-item">
+                <div class="session-icon">📖</div>
+                <div class="session-content">
+                    <h4 class="session-subject">${escapeHtml(session.subject)}</h4>
+                    <p class="session-meta">
+                        <span class="session-hours">${parseFloat(session.hours).toFixed(1)} hours</span>
+                        <span class="session-date">${formatDate(session.date)}</span>
+                    </p>
+                    ${session.notes ? `<p class="session-notes">${escapeHtml(session.notes)}</p>` : ''}
+                </div>
+                <button class="icon-btn" onclick="deleteSession(${session.id})" title="Delete session">
+                    🗑️
+                </button>
+            </div>
+        `).join('');
+    }
+
+    function showAddSessionModal() {
+        document.getElementById('add-session-modal').style.display = 'flex';
+        document.getElementById('session-subject').focus();
+    }
+
+    function closeAddSessionModal() {
+        document.getElementById('add-session-modal').style.display = 'none';
+        document.getElementById('add-session-form').reset();
+    }
+
+    function addSession(event) {
+        event.preventDefault();
+        const subject = document.getElementById('session-subject').value;
+        const hours = parseFloat(document.getElementById('session-hours').value);
+        const notes = document.getElementById('session-notes').value;
+
+        fetch('/api/study-sessions', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ 
+                subject, 
+                hours,
+                notes: notes || null
+            })
+        })
+        .then(res => res.json())
+        .then(data => {
+            closeAddSessionModal();
+            loadSessions();
+        });
+    }
+
+    function deleteSession(id) {
+        if (confirm('Are you sure you want to delete this study session?')) {
+            fetch(`/api/study-sessions/${id}`, {
+                method: 'DELETE'
+            })
+            .then(res => res.json())
+            .then(data => {
+                loadSessions();
+            });
+        }
+    }
+
+    function formatDate(dateString) {
+        const date = new Date(dateString);
+        return date.toLocaleDateString('en-US', { 
+            year: 'numeric', 
+            month: 'short', 
+            day: 'numeric',
+            hour: '2-digit',
+            minute: '2-digit'
+        });
+    }
+
+    function escapeHtml(text) {
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
+    }
+
+    // Close modal when clicking outside
+    window.onclick = function(event) {
+        const modal = document.getElementById('add-session-modal');
+        if (event.target == modal) {
+            closeAddSessionModal();
+        }
+    }
+</script>
+
