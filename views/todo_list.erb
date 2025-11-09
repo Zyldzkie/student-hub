@@ -206,7 +206,7 @@
                             <span class="priority-badge ${priorityClass}">${(todo.priority || 'medium')} priority</span>
                             ${todo.due_date ? `
                                 <span class="todo-due-date ${overdue ? 'overdue' : ''}">
-                                    <i class="fas fa-calendar"></i> ${formatDate(todo.due_date)} ${daysLeft !== null ? `(${daysLeft} ${Math.abs(daysLeft) === 1 ? 'day' : 'days'} ${daysLeft < 0 ? 'overdue' : 'left'})` : ''}
+                                    <i class="fas fa-calendar"></i> ${formatDate(todo.due_date)} ${daysLeft !== null ? `(${Math.abs(daysLeft)} ${Math.abs(daysLeft) === 1 ? 'day' : 'days'} ${daysLeft < 0 ? 'overdue' : 'left'})` : ''}
                                 </span>
                             ` : ''}
                         </div>
