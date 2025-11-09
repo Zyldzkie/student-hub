@@ -79,7 +79,7 @@ Open your web browser and navigate to that URL to see the StudentHub interface.
 
 - **User Authentication**: Secure login and registration system with password hashing
 - **SQLite Database**: All data is stored in a SQLite database, persisted across sessions
-- **Dashboard**: Overview of your academic progress, GPA, active classes, pending tasks, and study hours
+- **Dashboard**: Overview of your academic progress, GPA, active classes, pending tasks, and study time
 - **Grade Calculator**: Add classes and assignments, track grades, and calculate weighted averages
 - **To-Do List**: Manage your tasks with filtering (All/Active/Completed)
 - **Study Logger**: Log study sessions and track your study time

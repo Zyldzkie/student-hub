@@ -55,6 +55,7 @@ class Database
         title TEXT NOT NULL,
         description TEXT,
         due_date TEXT,
+        priority TEXT DEFAULT 'medium',
         completed BOOLEAN DEFAULT 0,
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
         FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,

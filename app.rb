@@ -250,8 +250,8 @@ post '/api/todos' do
   db = Database.get_db
   data = JSON.parse(request.body.read)
   
-  db.execute("INSERT INTO todos (user_id, profile_id, title, description, due_date, completed) VALUES (?, ?, ?, ?, ?, ?)",
-             current_user['id'], active_profile_id, data['title'], data['description'], data['due_date'], 0)
+  db.execute("INSERT INTO todos (user_id, profile_id, title, description, due_date, priority, completed) VALUES (?, ?, ?, ?, ?, ?, ?)",
+             current_user['id'], active_profile_id, data['title'], data['description'], data['due_date'], data['priority'] || 'medium', 0)
   
   { success: true, todos: get_user_todos }.to_json
 end
@@ -283,6 +283,11 @@ put '/api/todos/:id' do
   if data['due_date']
     updates << "due_date = ?"
     values << data['due_date']
+  end
+  
+  if data['priority']
+    updates << "priority = ?"
+    values << data['priority']
   end
   
   values << id
@@ -461,6 +466,7 @@ def get_user_todos
       'title' => t['title'],
       'description' => t['description'],
       'due_date' => t['due_date'],
+      'priority' => t['priority'] || 'medium',
       'completed' => t['completed'] == 1
     }
   }

@@ -2,21 +2,53 @@
 <div class="page-header">
     <div>
         <h1>To-Do List</h1>
-        <p class="subtitle">Stay organized and track your tasks</p>
+        <p class="subtitle">Manage your tasks and deadlines</p>
     </div>
     <button class="btn btn-primary" onclick="showAddTodoModal()">
-        <span class="btn-icon">+</span>
-        Add Task
+        <span>➕</span> Add Task
     </button>
 </div>
 
-<div class="todo-container">
-    <div class="todo-filters">
-        <button class="filter-btn active" onclick="filterTodos('all')">All</button>
-        <button class="filter-btn" onclick="filterTodos('active')">Active</button>
-        <button class="filter-btn" onclick="filterTodos('completed')">Completed</button>
+<div class="todo-stats-grid">
+    <div class="todo-stat-card">
+        <div class="stat-number" id="total-tasks">0</div>
+        <div class="stat-label">Total Tasks</div>
     </div>
+    <div class="todo-stat-card">
+        <div class="stat-number" id="active-tasks">0</div>
+        <div class="stat-label">Active</div>
+    </div>
+    <div class="todo-stat-card">
+        <div class="stat-number" id="completed-tasks">0</div>
+        <div class="stat-label">Completed</div>
+    </div>
+    <div class="todo-stat-card">
+        <div class="stat-number overdue" id="overdue-tasks">0</div>
+        <div class="stat-label">Overdue</div>
+    </div>
+</div>
 
+<div class="todo-controls-section">
+    <div class="filter-section">
+        <label class="control-label">Filter</label>
+        <div class="filter-buttons">
+            <button class="filter-btn active" onclick="filterTodos('all')">All</button>
+            <button class="filter-btn" onclick="filterTodos('active')">Active</button>
+            <button class="filter-btn" onclick="filterTodos('completed')">Completed</button>
+        </div>
+    </div>
+    <div class="sort-section">
+        <label class="control-label">Sort By</label>
+        <select class="sort-select" id="sort-select" onchange="sortTodos()">
+            <option value="due_date">Due Date</option>
+            <option value="priority">Priority</option>
+            <option value="title">Title</option>
+            <option value="created_at">Date Created</option>
+        </select>
+    </div>
+</div>
+
+<div class="todo-container">
     <div class="todos-list" id="todos-list">
         <p class="empty-state">No tasks yet. Click "Add Task" to get started!</p>
     </div>
@@ -26,32 +58,44 @@
 <div id="add-todo-modal" class="modal">
     <div class="modal-content">
         <div class="modal-header">
-            <h2>Add New Task</h2>
-            <button class="modal-close" onclick="closeAddTodoModal()">&times;</button>
+            <h3>Add New Task</h3>
+            <button class="close-btn" onclick="closeAddTodoModal()">&times;</button>
         </div>
-        <form id="add-todo-form" onsubmit="addTodo(event)">
-            <div class="form-group">
-                <label for="todo-title">Task Title</label>
-                <input type="text" id="todo-title" required placeholder="e.g., Complete math homework">
-            </div>
-            <div class="form-group">
-                <label for="todo-description">Description (optional)</label>
-                <textarea id="todo-description" rows="3" placeholder="Add more details..."></textarea>
-            </div>
-            <div class="form-group">
-                <label for="todo-due-date">Due Date (optional)</label>
-                <input type="date" id="todo-due-date">
-            </div>
-            <div class="form-actions">
-                <button type="button" class="btn btn-secondary" onclick="closeAddTodoModal()">Cancel</button>
-                <button type="submit" class="btn btn-primary">Add Task</button>
-            </div>
-        </form>
+        <div class="modal-body">
+            <form id="add-todo-form" onsubmit="addTodo(event)">
+                <div class="form-group">
+                    <label for="todo-title">Task Title *</label>
+                    <input type="text" id="todo-title" required placeholder="e.g., Complete math homework">
+                </div>
+                <div class="form-group">
+                    <label for="todo-description">Description (optional)</label>
+                    <textarea id="todo-description" rows="3" placeholder="Add more details..."></textarea>
+                </div>
+                <div class="form-group">
+                    <label for="todo-priority">Priority</label>
+                    <select id="todo-priority" class="form-control">
+                        <option value="low">Low</option>
+                        <option value="medium" selected>Medium</option>
+                        <option value="high">High</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="todo-due-date">Due Date (optional)</label>
+                    <input type="date" id="todo-due-date">
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" onclick="closeAddTodoModal()">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Add Task</button>
+                </div>
+            </form>
+        </div>
     </div>
 </div>
 
 <script>
+    let allTodos = [];
     let currentFilter = 'all';
+    let currentSort = 'due_date';
 
     document.addEventListener('DOMContentLoaded', function() {
         loadTodos();
@@ -61,50 +105,130 @@
         fetch('/api/todos')
             .then(res => res.json())
             .then(data => {
-                renderTodos(data.todos);
+                allTodos = data.todos;
+                updateStats();
+                renderTodos();
             });
     }
 
-    function renderTodos(todos) {
+    function updateStats() {
+        const total = allTodos.length;
+        const active = allTodos.filter(t => !t.completed).length;
+        const completed = allTodos.filter(t => t.completed).length;
+        const overdue = allTodos.filter(t => !t.completed && t.due_date && isOverdue(t.due_date)).length;
+
+        document.getElementById('total-tasks').textContent = total;
+        document.getElementById('active-tasks').textContent = active;
+        document.getElementById('completed-tasks').textContent = completed;
+        document.getElementById('overdue-tasks').textContent = overdue;
+    }
+
+    function isOverdue(dueDate) {
+        if (!dueDate) return false;
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        const due = new Date(dueDate);
+        due.setHours(0, 0, 0, 0);
+        return due < today;
+    }
+
+    function getDaysLeft(dueDate) {
+        if (!dueDate) return null;
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        const due = new Date(dueDate);
+        due.setHours(0, 0, 0, 0);
+        const diffTime = due - today;
+        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+        return diffDays;
+    }
+
+    function formatDate(dateString) {
+        if (!dateString) return '';
+        const date = new Date(dateString);
+        const month = (date.getMonth() + 1).toString().padStart(2, '0');
+        const day = date.getDate().toString().padStart(2, '0');
+        const year = date.getFullYear();
+        return `${month}/${day}/${year}`;
+    }
+
+    function renderTodos() {
         const container = document.getElementById('todos-list');
         
-        let filteredTodos = todos;
+        // Filter todos
+        let filteredTodos = allTodos;
         if (currentFilter === 'active') {
-            filteredTodos = todos.filter(t => !t.completed);
+            filteredTodos = allTodos.filter(t => !t.completed);
         } else if (currentFilter === 'completed') {
-            filteredTodos = todos.filter(t => t.completed);
+            filteredTodos = allTodos.filter(t => t.completed);
         }
+
+        // Sort todos
+        filteredTodos = [...filteredTodos].sort((a, b) => {
+            switch(currentSort) {
+                case 'due_date':
+                    if (!a.due_date && !b.due_date) return 0;
+                    if (!a.due_date) return 1;
+                    if (!b.due_date) return -1;
+                    return new Date(a.due_date) - new Date(b.due_date);
+                case 'priority':
+                    const priorityOrder = { 'high': 3, 'medium': 2, 'low': 1 };
+                    return (priorityOrder[b.priority] || 2) - (priorityOrder[a.priority] || 2);
+                case 'title':
+                    return a.title.localeCompare(b.title);
+                case 'created_at':
+                default:
+                    return 0;
+            }
+        });
 
         if (filteredTodos.length === 0) {
             container.innerHTML = '<p class="empty-state">No tasks found.</p>';
             return;
         }
 
-        container.innerHTML = filteredTodos.map(todo => `
-            <div class="todo-item ${todo.completed ? 'completed' : ''}">
-                <input 
-                    type="checkbox" 
-                    class="todo-checkbox" 
-                    ${todo.completed ? 'checked' : ''}
-                    onchange="toggleTodo(${todo.id}, this.checked)"
-                >
-                <div class="todo-content">
-                    <h4 class="todo-title">${escapeHtml(todo.title)}</h4>
-                    ${todo.description ? `<p class="todo-description">${escapeHtml(todo.description)}</p>` : ''}
-                    ${todo.due_date ? `<p class="todo-due-date">Due: ${formatDate(todo.due_date)}</p>` : ''}
+        container.innerHTML = filteredTodos.map(todo => {
+            const daysLeft = getDaysLeft(todo.due_date);
+            const overdue = isOverdue(todo.due_date);
+            const priorityClass = `priority-${todo.priority || 'medium'}`;
+            
+            return `
+                <div class="todo-item ${todo.completed ? 'completed' : ''}">
+                    <input 
+                        type="checkbox" 
+                        class="todo-checkbox" 
+                        ${todo.completed ? 'checked' : ''}
+                        onchange="toggleTodo(${todo.id}, this.checked)"
+                    >
+                    <div class="todo-content">
+                        <div class="todo-title">${escapeHtml(todo.title)}</div>
+                        <div class="todo-meta">
+                            <span class="priority-badge ${priorityClass}">${(todo.priority || 'medium')} priority</span>
+                            ${todo.due_date ? `
+                                <span class="todo-due-date ${overdue ? 'overdue' : ''}">
+                                    📅 ${formatDate(todo.due_date)} ${daysLeft !== null ? `(${daysLeft} ${Math.abs(daysLeft) === 1 ? 'day' : 'days'} ${daysLeft < 0 ? 'overdue' : 'left'})` : ''}
+                                </span>
+                            ` : ''}
+                        </div>
+                    </div>
+                    <button class="icon-btn delete-btn" onclick="deleteTodo(${todo.id})" title="Delete task">
+                        🗑️
+                    </button>
                 </div>
-                <button class="icon-btn" onclick="deleteTodo(${todo.id})" title="Delete task">
-                    🗑️
-                </button>
-            </div>
-        `).join('');
+            `;
+        }).join('');
     }
 
     function filterTodos(filter) {
         currentFilter = filter;
         document.querySelectorAll('.filter-btn').forEach(btn => btn.classList.remove('active'));
         event.target.classList.add('active');
-        loadTodos();
+        renderTodos();
+    }
+
+    function sortTodos() {
+        currentSort = document.getElementById('sort-select').value;
+        renderTodos();
     }
 
     function showAddTodoModal() {
@@ -115,12 +239,14 @@
     function closeAddTodoModal() {
         document.getElementById('add-todo-modal').style.display = 'none';
         document.getElementById('add-todo-form').reset();
+        document.getElementById('todo-priority').value = 'medium';
     }
 
     function addTodo(event) {
         event.preventDefault();
         const title = document.getElementById('todo-title').value;
         const description = document.getElementById('todo-description').value;
+        const priority = document.getElementById('todo-priority').value;
         const dueDate = document.getElementById('todo-due-date').value;
 
         fetch('/api/todos', {
@@ -129,6 +255,7 @@
             body: JSON.stringify({ 
                 title, 
                 description: description || null,
+                priority: priority || 'medium',
                 due_date: dueDate || null
             })
         })
@@ -163,11 +290,6 @@
         }
     }
 
-    function formatDate(dateString) {
-        const date = new Date(dateString);
-        return date.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
-    }
-
     function escapeHtml(text) {
         const div = document.createElement('div');
         div.textContent = text;
@@ -182,4 +304,3 @@
         }
     }
 </script>
-

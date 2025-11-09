@@ -23,9 +23,9 @@
         <p class="stat-label">Items in your to-do list</p>
     </div>
     <div class="dashboard-card">
-        <h3>Study Hours</h3>
+        <h3>Study Time</h3>
         <p class="stat-value" id="study-hours">0</p>
-        <p class="stat-label">Hours logged this week</p>
+        <p class="stat-label">Time logged this week</p>
     </div>
 </div>
 
@@ -116,7 +116,20 @@
             .then(res => res.json())
             .then(data => {
                 const thisWeek = getThisWeekHours(data.sessions);
-                document.getElementById('study-hours').textContent = thisWeek.toFixed(1);
+                // Show hours with 2 decimal places for better precision
+                // If less than 0.1 hours (6 minutes), show in minutes
+                if (thisWeek < 0.1 && thisWeek > 0) {
+                    const minutes = Math.round(thisWeek * 60);
+                    document.getElementById('study-hours').textContent = `${minutes} min`;
+                } else if (thisWeek === 0) {
+                    document.getElementById('study-hours').textContent = '0';
+                } else {
+                    document.getElementById('study-hours').textContent = thisWeek.toFixed(2);
+                }
+            })
+            .catch(error => {
+                console.error('Error loading study sessions:', error);
+                document.getElementById('study-hours').textContent = '0';
             });
     }
     
@@ -282,7 +295,7 @@
                                     <span class="stat-value">${analytics.completed_todos}/${analytics.todos_count}</span>
                                 </div>
                                 <div class="stat-item">
-                                    <span class="stat-label">Study Hours</span>
+                                    <span class="stat-label">Study Time</span>
                                     <span class="stat-value">${analytics.total_study_hours}h</span>
                                 </div>
                             </div>
@@ -300,12 +313,30 @@
 
     function getThisWeekHours(sessions) {
         const now = new Date();
-        const weekStart = new Date(now.setDate(now.getDate() - now.getDay()));
+        const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+        const dayOfWeek = now.getDay();
+        const weekStart = new Date(today);
+        weekStart.setDate(today.getDate() - dayOfWeek);
         weekStart.setHours(0, 0, 0, 0);
 
         return sessions
-            .filter(s => new Date(s.date) >= weekStart)
-            .reduce((sum, s) => sum + (parseFloat(s.hours) || 0), 0);
+            .filter(s => {
+                if (!s.date) return false;
+                // Parse date string (YYYY-MM-DD format)
+                const dateParts = s.date.split('-');
+                if (dateParts.length !== 3) return false;
+                const sessionDate = new Date(
+                    parseInt(dateParts[0]), 
+                    parseInt(dateParts[1]) - 1, 
+                    parseInt(dateParts[2])
+                );
+                sessionDate.setHours(0, 0, 0, 0);
+                return sessionDate >= weekStart;
+            })
+            .reduce((sum, s) => {
+                const hours = parseFloat(s.hours) || 0;
+                return sum + hours;
+            }, 0);
     }
 </script>
 
