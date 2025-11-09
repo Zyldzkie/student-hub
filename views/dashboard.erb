@@ -87,7 +87,58 @@
     document.addEventListener('DOMContentLoaded', function() {
         loadDashboardData();
         loadProfiles();
+        loadRecentActivity();
     });
+
+    function loadRecentActivity() {
+        fetch('/api/recent-activity')
+            .then(res => res.json())
+            .then(data => {
+                displayRecentActivity(data.activities);
+            })
+            .catch(error => {
+                console.error('Error loading recent activity:', error);
+            });
+    }
+
+    function displayRecentActivity(activities) {
+        const container = document.getElementById('activity-list');
+        
+        if (activities.length === 0) {
+            container.innerHTML = '<p class="empty-state">No recent activity</p>';
+            return;
+        }
+        
+        container.innerHTML = activities.map(activity => {
+            const date = new Date(activity.timestamp);
+            const timeAgo = getTimeAgo(date);
+            
+            return `
+                <div class="activity-item">
+                    <span class="activity-icon">${activity.icon}</span>
+                    <div class="activity-content">
+                        <div class="activity-description">${escapeHtml(activity.description)}</div>
+                        <div class="activity-time">${timeAgo}</div>
+                    </div>
+                </div>
+            `;
+        }).join('');
+    }
+
+    function getTimeAgo(date) {
+        const now = new Date();
+        const diffMs = now - date;
+        const diffMins = Math.floor(diffMs / 60000);
+        const diffHours = Math.floor(diffMs / 3600000);
+        const diffDays = Math.floor(diffMs / 86400000);
+        
+        if (diffMins < 1) return 'Just now';
+        if (diffMins < 60) return `${diffMins} ${diffMins === 1 ? 'minute' : 'minutes'} ago`;
+        if (diffHours < 24) return `${diffHours} ${diffHours === 1 ? 'hour' : 'hours'} ago`;
+        if (diffDays < 7) return `${diffDays} ${diffDays === 1 ? 'day' : 'days'} ago`;
+        
+        return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+    }
 
     function loadDashboardData() {
         // Load GWA subjects
@@ -131,6 +182,9 @@
                 console.error('Error loading study sessions:', error);
                 document.getElementById('study-hours').textContent = '0';
             });
+        
+        // Reload recent activity when dashboard data changes
+        loadRecentActivity();
     }
     
     // Profile Management Functions
@@ -220,6 +274,7 @@
                 currentActiveProfileId = data.active_profile_id;
                 displayProfiles(data.profiles);
                 loadDashboardData(); // Reload dashboard with new profile data
+                loadRecentActivity(); // Reload recent activity for new profile
                 alert('Profile switched! The dashboard now shows data from the selected semester.');
             }
         });
@@ -309,6 +364,12 @@
     function formatDate(dateStr) {
         const date = new Date(dateStr);
         return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+    }
+
+    function escapeHtml(text) {
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
     }
 
     function getThisWeekHours(sessions) {

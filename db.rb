@@ -88,10 +88,43 @@ class Database
     db.execute "CREATE INDEX IF NOT EXISTS idx_study_sessions_profile_id ON study_sessions(profile_id)"
     db.execute "CREATE INDEX IF NOT EXISTS idx_semester_profiles_user_id ON semester_profiles(user_id)"
     
+    # Migration: Add missing columns to existing tables
+    migrate_schema(db)
+    
     # Migration: Create default profile for existing users without active_profile_id
     migrate_existing_data(db)
     
     db
+  end
+  
+  def self.migrate_schema(db)
+    # Add active_profile_id to users table if it doesn't exist
+    begin
+      db.execute("ALTER TABLE users ADD COLUMN active_profile_id INTEGER")
+    rescue SQLite3::SQLException => e
+      # Column already exists, ignore
+    end
+    
+    # Add profile_id to todos if it doesn't exist
+    begin
+      db.execute("ALTER TABLE todos ADD COLUMN profile_id INTEGER")
+    rescue SQLite3::SQLException => e
+      # Column already exists, ignore
+    end
+    
+    # Add priority to todos if it doesn't exist
+    begin
+      db.execute("ALTER TABLE todos ADD COLUMN priority TEXT DEFAULT 'medium'")
+    rescue SQLite3::SQLException => e
+      # Column already exists, ignore
+    end
+    
+    # Add profile_id to study_sessions if it doesn't exist
+    begin
+      db.execute("ALTER TABLE study_sessions ADD COLUMN profile_id INTEGER")
+    rescue SQLite3::SQLException => e
+      # Column already exists, ignore
+    end
   end
   
   def self.migrate_existing_data(db)

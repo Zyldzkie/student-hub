@@ -336,6 +336,12 @@ delete '/api/study-sessions/:id' do
   { success: true, sessions: get_user_study_sessions }.to_json
 end
 
+# API route for Recent Activity
+get '/api/recent-activity' do
+  content_type :json
+  { activities: get_recent_activities }.to_json
+end
+
 # API routes for Semester Profiles
 get '/api/profiles' do
   content_type :json
@@ -500,6 +506,55 @@ def get_user_profiles
       'created_at' => p['created_at']
     }
   }
+end
+
+def get_recent_activities
+  db = Database.get_db
+  activities = []
+  
+  # Get recent GWA subjects (last 10)
+  subjects = db.execute("SELECT * FROM gwa_subjects WHERE user_id = ? AND profile_id = ? ORDER BY created_at DESC LIMIT 10", 
+                       current_user['id'], active_profile_id)
+  subjects.each do |subject|
+    activities << {
+      'type' => 'gwa_subject',
+      'action' => 'added',
+      'description' => "Added subject: #{subject['subject_name']} (#{subject['units']} units)",
+      'timestamp' => subject['created_at'],
+      'icon' => '📚'
+    }
+  end
+  
+  # Get recent todos (last 10)
+  todos = db.execute("SELECT * FROM todos WHERE user_id = ? AND profile_id = ? ORDER BY created_at DESC LIMIT 10", 
+                    current_user['id'], active_profile_id)
+  todos.each do |todo|
+    action = todo['completed'] == 1 ? 'completed' : 'created'
+    activities << {
+      'type' => 'todo',
+      'action' => action,
+      'description' => action == 'completed' ? "Completed task: #{todo['title']}" : "Created task: #{todo['title']}",
+      'timestamp' => todo['created_at'],
+      'icon' => action == 'completed' ? '✅' : '📝'
+    }
+  end
+  
+  # Get recent study sessions (last 10)
+  sessions = db.execute("SELECT * FROM study_sessions WHERE user_id = ? AND profile_id = ? ORDER BY created_at DESC LIMIT 10", 
+                       current_user['id'], active_profile_id)
+  sessions.each do |session|
+    minutes = (session['hours'].to_f * 60).round
+    activities << {
+      'type' => 'study_session',
+      'action' => 'completed',
+      'description' => "Completed #{minutes} min study session: #{session['subject']}",
+      'timestamp' => session['created_at'],
+      'icon' => '📖'
+    }
+  end
+  
+  # Sort by timestamp (newest first) and limit to 20 most recent
+  activities.sort_by { |a| a['timestamp'] }.reverse.first(20)
 end
 
 def get_profile_analytics(profile_id)
