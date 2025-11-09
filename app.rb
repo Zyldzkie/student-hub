@@ -52,6 +52,10 @@ helpers do
     user = db.execute("SELECT * FROM users WHERE username = ?", username).first
     user
   end
+  
+  def active_profile_id
+    current_user ? current_user['active_profile_id'] : nil
+  end
 end
 
 # Authentication routes
@@ -112,7 +116,17 @@ post '/register' do
              username, email, password_hash)
   
   user = get_user_by_username(username)
-  session[:user_id] = user['id']
+  user_id = user['id']
+  
+  # Create default profile for new user
+  db.execute("INSERT INTO semester_profiles (user_id, name, start_date) VALUES (?, ?, ?)",
+             user_id, "Default", Time.now.strftime('%Y-%m-%d'))
+  profile_id = db.last_insert_row_id
+  
+  # Set as active profile
+  db.execute("UPDATE users SET active_profile_id = ? WHERE id = ?", profile_id, user_id)
+  
+  session[:user_id] = user_id
   redirect '/dashboard'
 end
 
@@ -166,8 +180,8 @@ post '/api/classes' do
   db = Database.get_db
   data = JSON.parse(request.body.read)
   
-  db.execute("INSERT INTO classes (user_id, name) VALUES (?, ?)", 
-             current_user['id'], data['name'])
+  db.execute("INSERT INTO classes (user_id, profile_id, name) VALUES (?, ?, ?)", 
+             current_user['id'], active_profile_id, data['name'])
   
   class_id = db.last_insert_row_id
   classes = get_user_classes
@@ -252,8 +266,8 @@ post '/api/todos' do
   db = Database.get_db
   data = JSON.parse(request.body.read)
   
-  db.execute("INSERT INTO todos (user_id, title, description, due_date, completed) VALUES (?, ?, ?, ?, ?)",
-             current_user['id'], data['title'], data['description'], data['due_date'], 0)
+  db.execute("INSERT INTO todos (user_id, profile_id, title, description, due_date, completed) VALUES (?, ?, ?, ?, ?, ?)",
+             current_user['id'], active_profile_id, data['title'], data['description'], data['due_date'], 0)
   
   { success: true, todos: get_user_todos }.to_json
 end
@@ -317,8 +331,8 @@ post '/api/study-sessions' do
   data = JSON.parse(request.body.read)
   
   date = data['date'] || Time.now.strftime('%Y-%m-%d')
-  db.execute("INSERT INTO study_sessions (user_id, subject, hours, notes, date) VALUES (?, ?, ?, ?, ?)",
-             current_user['id'], data['subject'], data['hours'], data['notes'], date)
+  db.execute("INSERT INTO study_sessions (user_id, profile_id, subject, hours, notes, date) VALUES (?, ?, ?, ?, ?, ?)",
+             current_user['id'], active_profile_id, data['subject'], data['hours'], data['notes'], date)
   
   { success: true, sessions: get_user_study_sessions }.to_json
 end
@@ -333,11 +347,94 @@ delete '/api/study-sessions/:id' do
   { success: true, sessions: get_user_study_sessions }.to_json
 end
 
+# API routes for Semester Profiles
+get '/api/profiles' do
+  content_type :json
+  { profiles: get_user_profiles, active_profile_id: active_profile_id }.to_json
+end
+
+post '/api/profiles' do
+  content_type :json
+  db = Database.get_db
+  data = JSON.parse(request.body.read)
+  
+  db.execute("INSERT INTO semester_profiles (user_id, name, start_date, end_date) VALUES (?, ?, ?, ?)",
+             current_user['id'], data['name'], data['start_date'], data['end_date'])
+  
+  profile_id = db.last_insert_row_id
+  
+  # If this is the first profile, make it active
+  if current_user['active_profile_id'].nil?
+    db.execute("UPDATE users SET active_profile_id = ? WHERE id = ?", profile_id, current_user['id'])
+    @current_user = nil # Clear cache
+  end
+  
+  { success: true, profiles: get_user_profiles, active_profile_id: active_profile_id }.to_json
+end
+
+put '/api/profiles/:id/activate' do
+  content_type :json
+  db = Database.get_db
+  profile_id = params[:id].to_i
+  
+  # Verify profile belongs to user
+  profile = db.execute("SELECT * FROM semester_profiles WHERE id = ? AND user_id = ?", 
+                       profile_id, current_user['id']).first
+  return { success: false, error: 'Profile not found' }.to_json unless profile
+  
+  db.execute("UPDATE users SET active_profile_id = ? WHERE id = ?", profile_id, current_user['id'])
+  @current_user = nil # Clear cache
+  
+  { success: true, profiles: get_user_profiles, active_profile_id: profile_id }.to_json
+end
+
+delete '/api/profiles/:id' do
+  content_type :json
+  db = Database.get_db
+  profile_id = params[:id].to_i
+  
+  # Verify profile belongs to user
+  profile = db.execute("SELECT * FROM semester_profiles WHERE id = ? AND user_id = ?", 
+                       profile_id, current_user['id']).first
+  return { success: false, error: 'Profile not found' }.to_json unless profile
+  
+  # Can't delete if it's the only profile
+  all_profiles = get_user_profiles
+  if all_profiles.length <= 1
+    return { success: false, error: 'Cannot delete your only profile' }.to_json
+  end
+  
+  # If deleting active profile, switch to another one
+  if current_user['active_profile_id'] == profile_id
+    new_active = all_profiles.find { |p| p['id'] != profile_id }
+    db.execute("UPDATE users SET active_profile_id = ? WHERE id = ?", new_active['id'], current_user['id'])
+    @current_user = nil # Clear cache
+  end
+  
+  db.execute("DELETE FROM semester_profiles WHERE id = ? AND user_id = ?", profile_id, current_user['id'])
+  
+  { success: true, profiles: get_user_profiles, active_profile_id: active_profile_id }.to_json
+end
+
+get '/api/profiles/:id/analytics' do
+  content_type :json
+  profile_id = params[:id].to_i
+  
+  # Verify profile belongs to user
+  db = Database.get_db
+  profile = db.execute("SELECT * FROM semester_profiles WHERE id = ? AND user_id = ?", 
+                       profile_id, current_user['id']).first
+  return { success: false, error: 'Profile not found' }.to_json unless profile
+  
+  analytics = get_profile_analytics(profile_id)
+  { success: true, analytics: analytics, profile: profile }.to_json
+end
+
 # Helper methods for database queries
 def get_user_classes
   db = Database.get_db
-  classes = db.execute("SELECT * FROM classes WHERE user_id = ? ORDER BY created_at DESC", 
-                       current_user['id'])
+  classes = db.execute("SELECT * FROM classes WHERE user_id = ? AND profile_id = ? ORDER BY created_at DESC", 
+                       current_user['id'], active_profile_id)
   
   classes.map do |cls|
     assignments = db.execute("SELECT * FROM assignments WHERE class_id = ?", cls['id'])
@@ -354,8 +451,8 @@ end
 
 def get_user_todos
   db = Database.get_db
-  todos = db.execute("SELECT * FROM todos WHERE user_id = ? ORDER BY created_at DESC", 
-                     current_user['id'])
+  todos = db.execute("SELECT * FROM todos WHERE user_id = ? AND profile_id = ? ORDER BY created_at DESC", 
+                     current_user['id'], active_profile_id)
   todos.map { |t| 
     {
       'id' => t['id'],
@@ -369,8 +466,8 @@ end
 
 def get_user_study_sessions
   db = Database.get_db
-  sessions = db.execute("SELECT * FROM study_sessions WHERE user_id = ? ORDER BY date DESC, created_at DESC", 
-                        current_user['id'])
+  sessions = db.execute("SELECT * FROM study_sessions WHERE user_id = ? AND profile_id = ? ORDER BY date DESC, created_at DESC", 
+                        current_user['id'], active_profile_id)
   sessions.map { |s|
     {
       'id' => s['id'],
@@ -379,5 +476,70 @@ def get_user_study_sessions
       'notes' => s['notes'],
       'date' => s['date']
     }
+  }
+end
+
+def get_user_profiles
+  db = Database.get_db
+  profiles = db.execute("SELECT * FROM semester_profiles WHERE user_id = ? ORDER BY created_at DESC", 
+                        current_user['id'])
+  profiles.map { |p|
+    {
+      'id' => p['id'],
+      'name' => p['name'],
+      'start_date' => p['start_date'],
+      'end_date' => p['end_date'],
+      'created_at' => p['created_at']
+    }
+  }
+end
+
+def get_profile_analytics(profile_id)
+  db = Database.get_db
+  
+  # Get classes count and GPA
+  classes = db.execute("SELECT * FROM classes WHERE user_id = ? AND profile_id = ?", 
+                       current_user['id'], profile_id)
+  
+  total_weight = 0
+  weighted_sum = 0
+  
+  classes.each do |cls|
+    assignments = db.execute("SELECT * FROM assignments WHERE class_id = ?", cls['id'])
+    if assignments.length > 0
+      class_weight = 0
+      class_sum = 0
+      assignments.each do |a|
+        weight = a['weight'] || 0
+        score = a['score'] || 0
+        class_sum += score * weight
+        class_weight += weight
+      end
+      if class_weight > 0
+        class_grade = class_sum / class_weight
+        weighted_sum += class_grade
+        total_weight += 1
+      end
+    end
+  end
+  
+  avg_gpa = total_weight > 0 ? weighted_sum / total_weight : 0
+  
+  # Get todos count
+  todos = db.execute("SELECT * FROM todos WHERE user_id = ? AND profile_id = ?", 
+                     current_user['id'], profile_id)
+  completed_todos = todos.select { |t| t['completed'] == 1 }.length
+  
+  # Get study sessions total hours
+  sessions = db.execute("SELECT SUM(hours) as total_hours FROM study_sessions WHERE user_id = ? AND profile_id = ?", 
+                        current_user['id'], profile_id)
+  total_study_hours = sessions.first['total_hours'] || 0
+  
+  {
+    'classes_count' => classes.length,
+    'avg_gpa' => avg_gpa.round(1),
+    'todos_count' => todos.length,
+    'completed_todos' => completed_todos,
+    'total_study_hours' => total_study_hours.round(1)
   }
 end
