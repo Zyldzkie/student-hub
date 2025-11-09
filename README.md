@@ -77,19 +77,26 @@ Open your web browser and navigate to that URL to see the StudentHub interface.
 
 ## Features
 
+- **User Authentication**: Secure login and registration system with password hashing
+- **SQLite Database**: All data is stored in a SQLite database, persisted across sessions
 - **Dashboard**: Overview of your academic progress, GPA, active classes, pending tasks, and study hours
 - **Grade Calculator**: Add classes and assignments, track grades, and calculate weighted averages
 - **To-Do List**: Manage your tasks with filtering (All/Active/Completed)
 - **Study Logger**: Log study sessions and track your study time
+- **User Profile**: See your username and email in the sidebar, with logout functionality
 
 ## Project Structure
 
 ```
 student-hub/
-├── app.rb              # Main Sinatra application
+├── app.rb              # Main Sinatra application with authentication
+├── db.rb               # Database initialization and schema
 ├── Gemfile             # Ruby dependencies
+├── student_hub.db      # SQLite database (created on first run)
 ├── views/              # ERB templates
 │   ├── layout.erb      # Main layout with sidebar
+│   ├── login.erb       # Login page
+│   ├── register.erb    # Registration page
 │   ├── dashboard.erb
 │   ├── grade_calculator.erb
 │   ├── todo_list.erb
@@ -100,6 +107,18 @@ student-hub/
     └── js/
         └── app.js      # Global JavaScript
 ```
+
+## Database
+
+The application uses SQLite to store all data. The database file (`student_hub.db`) is automatically created when you first run the application. The database includes:
+
+- **users**: User accounts with encrypted passwords
+- **classes**: Academic classes for each user
+- **assignments**: Assignments linked to classes
+- **todos**: Task items for each user
+- **study_sessions**: Study session logs for each user
+
+All data is user-specific and isolated by user ID.
 
 ## Troubleshooting
 

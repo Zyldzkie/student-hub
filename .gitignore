@@ -48,6 +48,12 @@
 Thumbs.db
 .DS_Store
 
+# Database
+*.db
+*.sqlite
+*.sqlite3
+student_hub.db
+
 # Rails specific (if using Rails)
 /db/*.sqlite3
 /db/*.sqlite3-journal

@@ -19,6 +19,13 @@
                     </div>
                 </div>
             </div>
+            <div class="user-info">
+                <div class="user-avatar">👤</div>
+                <div class="user-details">
+                    <div class="user-name"><%= current_user['username'] if current_user %></div>
+                    <div class="user-email"><%= current_user['email'] if current_user %></div>
+                </div>
+            </div>
             <ul class="nav-menu">
                 <li>
                     <a href="/dashboard" class="nav-item <%= 'active' if request.path == '/dashboard' %>">
@@ -45,6 +52,14 @@
                     </a>
                 </li>
             </ul>
+            <div class="sidebar-footer">
+                <form method="post" action="/logout" style="margin: 0;">
+                    <button type="submit" class="logout-btn">
+                        <span class="nav-icon">🚪</span>
+                        <span class="nav-text">Logout</span>
+                    </button>
+                </form>
+            </div>
         </nav>
 
         <!-- Main Content Area -->
