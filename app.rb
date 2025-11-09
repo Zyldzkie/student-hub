@@ -61,7 +61,7 @@ end
 # Authentication routes
 get '/login' do
   redirect '/dashboard' if logged_in?
-  erb :login
+  erb :login, :layout => false
 end
 
 post '/login' do
@@ -75,13 +75,13 @@ post '/login' do
     redirect '/dashboard'
   else
     @error = 'Invalid username or password'
-    erb :login
+    erb :login, :layout => false
   end
 end
 
 get '/register' do
   redirect '/dashboard' if logged_in?
-  erb :register
+  erb :register, :layout => false
 end
 
 post '/register' do
@@ -93,12 +93,12 @@ post '/register' do
   # Validation
   if password != password_confirm
     @error = 'Passwords do not match'
-    return erb :register
+    return erb :register, :layout => false
   end
 
   if password.length < 6
     @error = 'Password must be at least 6 characters'
-    return erb :register
+    return erb :register, :layout => false
   end
 
   db = Database.get_db
@@ -107,7 +107,7 @@ post '/register' do
   existing_user = db.execute("SELECT * FROM users WHERE username = ? OR email = ?", username, email).first
   if existing_user
     @error = 'Username or email already exists'
-    return erb :register
+    return erb :register, :layout => false
   end
 
   # Create user
@@ -521,7 +521,7 @@ def get_recent_activities
       'action' => 'added',
       'description' => "Added subject: #{subject['subject_name']} (#{subject['units']} units)",
       'timestamp' => subject['created_at'],
-      'icon' => '📚'
+      'icon' => 'fas fa-book'
     }
   end
   
@@ -535,7 +535,7 @@ def get_recent_activities
       'action' => action,
       'description' => action == 'completed' ? "Completed task: #{todo['title']}" : "Created task: #{todo['title']}",
       'timestamp' => todo['created_at'],
-      'icon' => action == 'completed' ? '✅' : '📝'
+      'icon' => action == 'completed' ? 'fas fa-check-circle' : 'fas fa-tasks'
     }
   end
   
@@ -549,7 +549,7 @@ def get_recent_activities
       'action' => 'completed',
       'description' => "Completed #{minutes} min study session: #{session['subject']}",
       'timestamp' => session['created_at'],
-      'icon' => '📖'
+      'icon' => 'fas fa-book-open'
     }
   end
   

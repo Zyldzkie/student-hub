@@ -4,6 +4,10 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>StudentHub - <%= @title || 'Your Academic Assistant' %></title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" integrity="sha512-DTOQO9RWCH3ppGqcWaEA1BIZOC6xxalwEsw9c2QQeAIftl+Vegovlnee1c9QX4TctnWMn13TZye+giMm8e2LwA==" crossorigin="anonymous" referrerpolicy="no-referrer" />
     <link rel="stylesheet" href="/css/style.css">
 </head>
 <body>
@@ -12,7 +16,7 @@
         <nav class="sidebar">
             <div class="sidebar-header">
                 <div class="logo">
-                    <span class="logo-icon">📚</span>
+                    <i class="fas fa-book logo-icon"></i>
                     <div class="logo-text">
                         <h1>StudentHub</h1>
                         <p>Your Academic Assistant</p>
@@ -20,7 +24,7 @@
                 </div>
             </div>
             <div class="user-info">
-                <div class="user-avatar">👤</div>
+                <div class="user-avatar"><i class="fas fa-user"></i></div>
                 <div class="user-details">
                     <div class="user-name"><%= current_user['username'] if current_user %></div>
                     <div class="user-email"><%= current_user['email'] if current_user %></div>
@@ -29,25 +33,25 @@
             <ul class="nav-menu">
                 <li>
                     <a href="/dashboard" class="nav-item <%= 'active' if request.path == '/dashboard' %>">
-                        <span class="nav-icon">🎓</span>
+                        <i class="fas fa-graduation-cap nav-icon"></i>
                         <span class="nav-text">Dashboard</span>
                     </a>
                 </li>
                 <li>
                     <a href="/grade-calculator" class="nav-item <%= 'active' if request.path == '/grade-calculator' %>">
-                        <span class="nav-icon">🧮</span>
+                        <i class="fas fa-calculator nav-icon"></i>
                         <span class="nav-text">GWA Calculator</span>
                     </a>
                 </li>
                 <li>
                     <a href="/todo-list" class="nav-item <%= 'active' if request.path == '/todo-list' %>">
-                        <span class="nav-icon">✓</span>
+                        <i class="fas fa-tasks nav-icon"></i>
                         <span class="nav-text">To-Do List</span>
                     </a>
                 </li>
                 <li>
                     <a href="/study-logger" class="nav-item <%= 'active' if request.path == '/study-logger' %>">
-                        <span class="nav-icon">⏰</span>
+                        <i class="fas fa-clock nav-icon"></i>
                         <span class="nav-text">Study Logger</span>
                     </a>
                 </li>
@@ -55,7 +59,7 @@
             <div class="sidebar-footer">
                 <form method="post" action="/logout" style="margin: 0;">
                     <button type="submit" class="logout-btn">
-                        <span class="nav-icon">🚪</span>
+                        <i class="fas fa-sign-out-alt nav-icon"></i>
                         <span class="nav-text">Logout</span>
                     </button>
                 </form>

@@ -29,34 +29,27 @@
     </div>
 </div>
 
-<div class="dashboard-section">
-    <h2>Recent Activity</h2>
-    <div class="activity-list" id="activity-list">
-        <p class="empty-state">No recent activity</p>
+<div class="dashboard-sections-row">
+    <div class="dashboard-section">
+        <h2>Semester Profiles</h2>
+        <p class="subtitle">Organize your academics by semester. You can use the Default profile or create specific semester profiles.</p>
+        
+        <div class="profile-controls">
+            <button class="btn btn-primary" onclick="showCreateProfileModal()">
+                <i class="fas fa-plus"></i> Create New Semester
+            </button>
+        </div>
+        
+        <div class="profiles-container" id="profiles-container">
+            <p class="empty-state">Loading profiles...</p>
+        </div>
     </div>
-</div>
 
-<div class="dashboard-section">
-    <h2>Semester Profiles</h2>
-    <p class="subtitle">Organize your academics by semester. You can use the Default profile or create specific semester profiles.</p>
-    
-    <div class="profile-controls">
-        <button class="btn btn-primary" onclick="showCreateProfileModal()">
-            <span>➕</span> Create New Semester
-        </button>
-    </div>
-    
-    <div class="profiles-container" id="profiles-container">
-        <p class="empty-state">Loading profiles...</p>
-    </div>
-</div>
-
-<div class="dashboard-section">
-    <h2>Profile Analytics</h2>
-    <p class="subtitle">Compare your academic performance across different semesters</p>
-    
-    <div class="analytics-container" id="analytics-container">
-        <p class="empty-state">Loading analytics...</p>
+    <div class="dashboard-section">
+        <h2>Recent Activity</h2>
+        <div class="activity-list" id="activity-list">
+            <p class="empty-state">No recent activity</p>
+        </div>
     </div>
 </div>
 
@@ -115,7 +108,7 @@
             
             return `
                 <div class="activity-item">
-                    <span class="activity-icon">${activity.icon}</span>
+                    <i class="${activity.icon} activity-icon"></i>
                     <div class="activity-content">
                         <div class="activity-description">${escapeHtml(activity.description)}</div>
                         <div class="activity-time">${timeAgo}</div>
@@ -193,12 +186,17 @@
             .then(res => res.json())
             .then(data => {
                 currentActiveProfileId = data.active_profile_id;
-                displayProfiles(data.profiles);
-                loadAllAnalytics(data.profiles);
+                // Load analytics for all profiles
+                Promise.all(data.profiles.map(profile => 
+                    fetch(`/api/profiles/${profile.id}/analytics`).then(res => res.json())
+                ))
+                .then(analyticsResults => {
+                    displayProfiles(data.profiles, analyticsResults);
+                });
             });
     }
     
-    function displayProfiles(profiles) {
+    function displayProfiles(profiles, analyticsData = []) {
         const container = document.getElementById('profiles-container');
         
         if (profiles.length === 0) {
@@ -206,11 +204,21 @@
             return;
         }
         
-        container.innerHTML = profiles.map(profile => `
-            <div class="profile-card ${profile.id === currentActiveProfileId ? 'active' : ''}">
+        container.innerHTML = profiles.map((profile, index) => {
+            const analytics = analyticsData[index]?.analytics || {
+                subjects_count: 0,
+                gwa: null,
+                todos_count: 0,
+                completed_todos: 0,
+                total_study_hours: 0
+            };
+            const isActive = profile.id === currentActiveProfileId;
+            
+            return `
+            <div class="profile-card ${isActive ? 'active' : ''}">
                 <div class="profile-header">
                     <h3>${profile.name}</h3>
-                    ${profile.id === currentActiveProfileId ? '<span class="badge">Active</span>' : ''}
+                    ${isActive ? '<span class="badge">Active</span>' : ''}
                 </div>
                 ${profile.start_date || profile.end_date ? `
                 <div class="profile-dates">
@@ -218,9 +226,29 @@
                     ${profile.end_date ? `${profile.start_date ? ' | ' : ''}End: ${formatDate(profile.end_date)}` : ''}
                 </div>
                 ` : ''}
+                <div class="profile-analytics">
+                    <div class="analytics-stats">
+                        <div class="stat-item">
+                            <span class="stat-label">Subjects</span>
+                            <span class="stat-value">${analytics.subjects_count}</span>
+                        </div>
+                        <div class="stat-item">
+                            <span class="stat-label">GWA</span>
+                            <span class="stat-value">${analytics.gwa !== null && analytics.gwa !== undefined ? analytics.gwa.toFixed(2) : 'N/A'}</span>
+                        </div>
+                        <div class="stat-item">
+                            <span class="stat-label">Todos Completed</span>
+                            <span class="stat-value">${analytics.completed_todos}/${analytics.todos_count}</span>
+                        </div>
+                        <div class="stat-item">
+                            <span class="stat-label">Study Time</span>
+                            <span class="stat-value">${analytics.total_study_hours}h</span>
+                        </div>
+                    </div>
+                </div>
                 <div class="profile-actions">
                     ${profile.id !== currentActiveProfileId ? 
-                        `<button class="btn btn-sm btn-primary" onclick="activateProfile(${profile.id})">Switch to This</button>` : 
+                        `<button class="btn btn-sm" onclick="activateProfile(${profile.id})">Switch to This</button>` : 
                         '<button class="btn btn-sm" disabled>Current</button>'}
                     <button class="btn btn-sm btn-danger" onclick="deleteProfile(${profile.id})" 
                         ${profiles.length <= 1 ? 'disabled title="Cannot delete your only profile"' : ''}>
@@ -228,7 +256,8 @@
                     </button>
                 </div>
             </div>
-        `).join('');
+        `;
+        }).join('');
     }
     
     function showCreateProfileModal() {
@@ -258,8 +287,13 @@
             if (data.success) {
                 closeCreateProfileModal();
                 currentActiveProfileId = data.active_profile_id;
-                displayProfiles(data.profiles);
-                loadAllAnalytics(data.profiles);
+                // Load analytics for all profiles
+                Promise.all(data.profiles.map(profile => 
+                    fetch(`/api/profiles/${profile.id}/analytics`).then(res => res.json())
+                ))
+                .then(analyticsResults => {
+                    displayProfiles(data.profiles, analyticsResults);
+                });
             }
         });
     }
@@ -272,10 +306,16 @@
         .then(data => {
             if (data.success) {
                 currentActiveProfileId = data.active_profile_id;
-                displayProfiles(data.profiles);
-                loadDashboardData(); // Reload dashboard with new profile data
-                loadRecentActivity(); // Reload recent activity for new profile
-                alert('Profile switched! The dashboard now shows data from the selected semester.');
+                // Load analytics for all profiles
+                Promise.all(data.profiles.map(profile => 
+                    fetch(`/api/profiles/${profile.id}/analytics`).then(res => res.json())
+                ))
+                .then(analyticsResults => {
+                    displayProfiles(data.profiles, analyticsResults);
+                    loadDashboardData(); // Reload dashboard with new profile data
+                    loadRecentActivity(); // Reload recent activity for new profile
+                    alert('Profile switched! The dashboard now shows data from the selected semester.');
+                });
             }
         });
     }
@@ -292,73 +332,18 @@
         .then(data => {
             if (data.success) {
                 currentActiveProfileId = data.active_profile_id;
-                displayProfiles(data.profiles);
-                loadAllAnalytics(data.profiles);
-                loadDashboardData(); // Reload dashboard if active profile changed
+                // Load analytics for all profiles
+                Promise.all(data.profiles.map(profile => 
+                    fetch(`/api/profiles/${profile.id}/analytics`).then(res => res.json())
+                ))
+                .then(analyticsResults => {
+                    displayProfiles(data.profiles, analyticsResults);
+                    loadDashboardData(); // Reload dashboard if active profile changed
+                });
             } else {
                 alert(data.error || 'Failed to delete profile');
             }
         });
-    }
-    
-    // Analytics Functions
-    function loadAllAnalytics(profiles) {
-        const container = document.getElementById('analytics-container');
-        
-        if (profiles.length === 0) {
-            container.innerHTML = '<p class="empty-state">No profiles to analyze</p>';
-            return;
-        }
-        
-        container.innerHTML = '<p class="empty-state">Loading analytics...</p>';
-        
-        Promise.all(profiles.map(profile => 
-            fetch(`/api/profiles/${profile.id}/analytics`).then(res => res.json())
-        ))
-        .then(results => {
-            displayAnalytics(results, profiles);
-        });
-    }
-    
-    function displayAnalytics(analyticsData, profiles) {
-        const container = document.getElementById('analytics-container');
-        
-        container.innerHTML = `
-            <div class="analytics-grid">
-                ${analyticsData.map((data, index) => {
-                    const profile = profiles[index];
-                    const analytics = data.analytics;
-                    const isActive = profile.id === currentActiveProfileId;
-                    
-                    return `
-                        <div class="analytics-card ${isActive ? 'active' : ''}">
-                            <div class="analytics-header">
-                                <h3>${profile.name}</h3>
-                                ${isActive ? '<span class="badge">Current</span>' : ''}
-                            </div>
-                            <div class="analytics-stats">
-                                <div class="stat-item">
-                                    <span class="stat-label">Subjects</span>
-                                    <span class="stat-value">${analytics.subjects_count}</span>
-                                </div>
-                                <div class="stat-item">
-                                    <span class="stat-label">GWA</span>
-                                    <span class="stat-value">${analytics.gwa !== null && analytics.gwa !== undefined ? analytics.gwa.toFixed(2) : 'N/A'}</span>
-                                </div>
-                                <div class="stat-item">
-                                    <span class="stat-label">Todos Completed</span>
-                                    <span class="stat-value">${analytics.completed_todos}/${analytics.todos_count}</span>
-                                </div>
-                                <div class="stat-item">
-                                    <span class="stat-label">Study Time</span>
-                                    <span class="stat-value">${analytics.total_study_hours}h</span>
-                                </div>
-                            </div>
-                        </div>
-                    `;
-                }).join('')}
-            </div>
-        `;
     }
     
     function formatDate(dateStr) {

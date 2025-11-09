@@ -5,7 +5,7 @@
         <p class="subtitle">Manage your tasks and deadlines</p>
     </div>
     <button class="btn btn-primary" onclick="showAddTodoModal()">
-        <span>➕</span> Add Task
+        <i class="fas fa-plus"></i> Add Task
     </button>
 </div>
 
@@ -206,13 +206,13 @@
                             <span class="priority-badge ${priorityClass}">${(todo.priority || 'medium')} priority</span>
                             ${todo.due_date ? `
                                 <span class="todo-due-date ${overdue ? 'overdue' : ''}">
-                                    📅 ${formatDate(todo.due_date)} ${daysLeft !== null ? `(${daysLeft} ${Math.abs(daysLeft) === 1 ? 'day' : 'days'} ${daysLeft < 0 ? 'overdue' : 'left'})` : ''}
+                                    <i class="fas fa-calendar"></i> ${formatDate(todo.due_date)} ${daysLeft !== null ? `(${daysLeft} ${Math.abs(daysLeft) === 1 ? 'day' : 'days'} ${daysLeft < 0 ? 'overdue' : 'left'})` : ''}
                                 </span>
                             ` : ''}
                         </div>
                     </div>
                     <button class="icon-btn delete-btn" onclick="deleteTodo(${todo.id})" title="Delete task">
-                        🗑️
+                        <i class="fas fa-trash"></i>
                     </button>
                 </div>
             `;
