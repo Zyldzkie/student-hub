@@ -96,10 +96,121 @@
     let isRunning = false;
     let lastSession = null;
     let allSessions = [];
+    let timerStartTime = null; // Timestamp when timer was started
+
+    // Save timer state to localStorage
+    function saveTimerState() {
+        const state = {
+            timerDuration: timerDuration,
+            timeRemaining: timeRemaining,
+            isRunning: isRunning,
+            timerStartTime: timerStartTime,
+            subject: document.getElementById('study-subject').value,
+            // Store the original total duration for accurate restoration
+            totalDuration: timerDuration * 60
+        };
+        localStorage.setItem('studyTimerState', JSON.stringify(state));
+    }
+
+    // Load timer state from localStorage
+    function loadTimerState() {
+        const saved = localStorage.getItem('studyTimerState');
+        if (!saved) return false;
+        
+        try {
+            const state = JSON.parse(saved);
+            
+            // If timer was running, calculate elapsed time
+            if (state.isRunning && state.timerStartTime) {
+                const now = Date.now();
+                // Calculate elapsed time since the timer was originally started
+                const elapsed = Math.floor((now - state.timerStartTime) / 1000); // elapsed seconds
+                
+                // Calculate remaining time from the original total duration
+                // This prevents double-counting issues
+                const totalDuration = state.totalDuration || (state.timerDuration * 60);
+                const newTimeRemaining = Math.max(0, totalDuration - elapsed);
+                
+                if (newTimeRemaining > 0) {
+                    // Timer is still valid, restore it
+                    timerDuration = state.timerDuration;
+                    timeRemaining = newTimeRemaining;
+                    isRunning = true;
+                    // Keep the original start time - don't adjust it
+                    // This ensures consistent calculations across reloads
+                    timerStartTime = state.timerStartTime;
+                    
+                    document.getElementById('study-subject').value = state.subject || '';
+                    document.getElementById('timer-duration').value = timerDuration;
+                    
+                    // Restore UI state
+                    document.getElementById('start-btn').innerHTML = '<span>⏸</span> Pause';
+                    document.getElementById('start-btn').classList.add('btn-pause');
+                    document.getElementById('study-subject').disabled = true;
+                    document.getElementById('timer-duration').disabled = true;
+                    
+                    // Update display immediately
+                    updateTimerDisplay();
+                    updateProgress();
+                    updateSubtitle();
+                    
+                    // Resume the timer
+                    timerInterval = setInterval(() => {
+                        if (timeRemaining > 0) {
+                            timeRemaining--;
+                            updateTimerDisplay();
+                            updateProgress();
+                            saveTimerState();
+                        } else {
+                            completeSession();
+                        }
+                    }, 1000);
+                    
+                    return true;
+                } else {
+                    // Timer expired while away, complete it
+                    timerDuration = state.timerDuration;
+                    timeRemaining = 0;
+                    document.getElementById('study-subject').value = state.subject || '';
+                    document.getElementById('timer-duration').value = timerDuration;
+                    completeSession();
+                    return true;
+                }
+            } else {
+                // Timer was paused, restore paused state
+                timerDuration = state.timerDuration;
+                timeRemaining = state.timeRemaining;
+                isRunning = false;
+                timerStartTime = null;
+                document.getElementById('study-subject').value = state.subject || '';
+                document.getElementById('timer-duration').value = timerDuration;
+                updateTimerDisplay();
+                updateProgress();
+                updateSubtitle();
+                return true;
+            }
+        } catch (e) {
+            console.error('Error loading timer state:', e);
+            localStorage.removeItem('studyTimerState');
+            return false;
+        }
+    }
+
+    // Clear timer state from localStorage
+    function clearTimerState() {
+        localStorage.removeItem('studyTimerState');
+    }
 
     document.addEventListener('DOMContentLoaded', function() {
+        // Try to restore timer state first
+        const restored = loadTimerState();
+        
         loadSessions();
-        updateTimerDisplay();
+        
+        // Only update display if we didn't restore a running timer
+        if (!restored || !isRunning) {
+            updateTimerDisplay();
+        }
     });
 
     function updateTimerDuration() {
@@ -108,6 +219,7 @@
         timeRemaining = timerDuration * 60;
         updateTimerDisplay();
         updateSubtitle();
+        saveTimerState();
     }
 
     function updateSubtitle() {
@@ -127,16 +239,20 @@
         }
         
         isRunning = true;
+        timerStartTime = Date.now();
         document.getElementById('start-btn').innerHTML = '<span>⏸</span> Pause';
         document.getElementById('start-btn').classList.add('btn-pause');
         document.getElementById('study-subject').disabled = true;
         document.getElementById('timer-duration').disabled = true;
+        
+        saveTimerState();
         
         timerInterval = setInterval(() => {
             if (timeRemaining > 0) {
                 timeRemaining--;
                 updateTimerDisplay();
                 updateProgress();
+                saveTimerState();
             } else {
                 completeSession();
             }
@@ -145,13 +261,16 @@
 
     function pauseTimer() {
         isRunning = false;
+        timerStartTime = null;
         clearInterval(timerInterval);
         document.getElementById('start-btn').innerHTML = '<span>▶</span> Start';
         document.getElementById('start-btn').classList.remove('btn-pause');
+        saveTimerState();
     }
 
     function resetTimer() {
         isRunning = false;
+        timerStartTime = null;
         clearInterval(timerInterval);
         timeRemaining = timerDuration * 60;
         updateTimerDisplay();
@@ -160,15 +279,20 @@
         document.getElementById('start-btn').classList.remove('btn-pause');
         document.getElementById('study-subject').disabled = false;
         document.getElementById('timer-duration').disabled = false;
+        clearTimerState();
     }
 
     function completeSession() {
         isRunning = false;
+        timerStartTime = null;
         clearInterval(timerInterval);
         
         const subject = document.getElementById('study-subject').value.trim();
         const completedDuration = timerDuration; // Store before resetting
         const hours = timerDuration / 60;
+        
+        // Clear timer state before saving session
+        clearTimerState();
         
         // Save session
         fetch('/api/study-sessions', {
@@ -198,7 +322,12 @@
             updateSubtitle();
             updateProgress();
             
-            resetTimer();
+            // Reset UI state
+            document.getElementById('start-btn').innerHTML = '<span>▶</span> Start';
+            document.getElementById('start-btn').classList.remove('btn-pause');
+            document.getElementById('study-subject').disabled = false;
+            document.getElementById('timer-duration').disabled = false;
+            
             loadSessions();
             
             // Show completion message
@@ -212,6 +341,7 @@
         document.getElementById('study-subject').value = lastSession.subject;
         document.getElementById('timer-duration').value = lastSession.duration;
         updateTimerDuration();
+        saveTimerState();
     }
 
     function updateTimerDisplay() {
