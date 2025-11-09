@@ -8,14 +8,14 @@
 
 <div class="dashboard-grid">
     <div class="dashboard-card">
-        <h3>Overall GPA</h3>
-        <p class="stat-value" id="overall-gpa">--</p>
-        <p class="stat-label">Based on all classes</p>
+        <h3>Overall GWA</h3>
+        <p class="stat-value" id="overall-gwa">--</p>
+        <p class="stat-label">Based on all subjects</p>
     </div>
     <div class="dashboard-card">
-        <h3>Active Classes</h3>
-        <p class="stat-value" id="active-classes">0</p>
-        <p class="stat-label">Classes this semester</p>
+        <h3>Subjects</h3>
+        <p class="stat-value" id="subjects-count">0</p>
+        <p class="stat-label">Subjects this semester</p>
     </div>
     <div class="dashboard-card">
         <h3>Pending Tasks</h3>
@@ -70,15 +70,7 @@
         <div class="modal-body">
             <div class="form-group">
                 <label for="profileName">Semester Name *</label>
-                <input type="text" id="profileName" placeholder="e.g., Fall 2024, Spring 2025" required>
-            </div>
-            <div class="form-group">
-                <label for="profileStartDate">Start Date</label>
-                <input type="date" id="profileStartDate">
-            </div>
-            <div class="form-group">
-                <label for="profileEndDate">End Date</label>
-                <input type="date" id="profileEndDate">
+                <input type="text" id="profileName" placeholder="e.g., 4th year 2nd Sem - 2025" required>
             </div>
         </div>
         <div class="modal-footer">
@@ -98,12 +90,17 @@
     });
 
     function loadDashboardData() {
-        // Load classes
-        fetch('/api/classes')
+        // Load GWA subjects
+        fetch('/api/gwa-subjects')
             .then(res => res.json())
             .then(data => {
-                document.getElementById('active-classes').textContent = data.classes.length;
-                calculateOverallGPA(data.classes);
+                document.getElementById('subjects-count').textContent = data.subjects.length;
+                const gwaElement = document.getElementById('overall-gwa');
+                if (data.gwa !== null && data.gwa !== undefined) {
+                    gwaElement.textContent = data.gwa.toFixed(2);
+                } else {
+                    gwaElement.textContent = '--';
+                }
             });
 
         // Load todos
@@ -148,10 +145,12 @@
                     <h3>${profile.name}</h3>
                     ${profile.id === currentActiveProfileId ? '<span class="badge">Active</span>' : ''}
                 </div>
+                ${profile.start_date || profile.end_date ? `
                 <div class="profile-dates">
-                    ${profile.start_date ? `Start: ${formatDate(profile.start_date)}` : 'No start date'}
-                    ${profile.end_date ? ` | End: ${formatDate(profile.end_date)}` : ''}
+                    ${profile.start_date ? `Start: ${formatDate(profile.start_date)}` : ''}
+                    ${profile.end_date ? `${profile.start_date ? ' | ' : ''}End: ${formatDate(profile.end_date)}` : ''}
                 </div>
+                ` : ''}
                 <div class="profile-actions">
                     ${profile.id !== currentActiveProfileId ? 
                         `<button class="btn btn-sm btn-primary" onclick="activateProfile(${profile.id})">Switch to This</button>` : 
@@ -172,14 +171,10 @@
     function closeCreateProfileModal() {
         document.getElementById('createProfileModal').style.display = 'none';
         document.getElementById('profileName').value = '';
-        document.getElementById('profileStartDate').value = '';
-        document.getElementById('profileEndDate').value = '';
     }
     
     function createProfile() {
         const name = document.getElementById('profileName').value.trim();
-        const startDate = document.getElementById('profileStartDate').value;
-        const endDate = document.getElementById('profileEndDate').value;
         
         if (!name) {
             alert('Please enter a semester name');
@@ -189,7 +184,7 @@
         fetch('/api/profiles', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ name, start_date: startDate, end_date: endDate })
+            body: JSON.stringify({ name })
         })
         .then(res => res.json())
         .then(data => {
@@ -275,12 +270,12 @@
                             </div>
                             <div class="analytics-stats">
                                 <div class="stat-item">
-                                    <span class="stat-label">Classes</span>
-                                    <span class="stat-value">${analytics.classes_count}</span>
+                                    <span class="stat-label">Subjects</span>
+                                    <span class="stat-value">${analytics.subjects_count}</span>
                                 </div>
                                 <div class="stat-item">
-                                    <span class="stat-label">Average Grade</span>
-                                    <span class="stat-value">${analytics.avg_gpa > 0 ? analytics.avg_gpa + '%' : 'N/A'}</span>
+                                    <span class="stat-label">GWA</span>
+                                    <span class="stat-value">${analytics.gwa !== null && analytics.gwa !== undefined ? analytics.gwa.toFixed(2) : 'N/A'}</span>
                                 </div>
                                 <div class="stat-item">
                                     <span class="stat-label">Todos Completed</span>
@@ -301,47 +296,6 @@
     function formatDate(dateStr) {
         const date = new Date(dateStr);
         return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
-    }
-
-    function calculateOverallGPA(classes) {
-        if (classes.length === 0) {
-            document.getElementById('overall-gpa').textContent = '--';
-            return;
-        }
-
-        let totalWeight = 0;
-        let weightedSum = 0;
-
-        classes.forEach(cls => {
-            if (cls.assignments && cls.assignments.length > 0) {
-                const classGrade = calculateClassGrade(cls.assignments);
-                const weight = 1; // Equal weight for all classes
-                weightedSum += classGrade * weight;
-                totalWeight += weight;
-            }
-        });
-
-        if (totalWeight === 0) {
-            document.getElementById('overall-gpa').textContent = '--';
-            return;
-        }
-
-        const gpa = weightedSum / totalWeight;
-        document.getElementById('overall-gpa').textContent = gpa.toFixed(1) + '%';
-    }
-
-    function calculateClassGrade(assignments) {
-        let totalWeight = 0;
-        let weightedSum = 0;
-
-        assignments.forEach(assignment => {
-            const weight = parseFloat(assignment.weight) || 0;
-            const score = parseFloat(assignment.score) || 0;
-            weightedSum += score * weight;
-            totalWeight += weight;
-        });
-
-        return totalWeight > 0 ? weightedSum / totalWeight : 0;
     }
 
     function getThisWeekHours(sessions) {

@@ -31,29 +31,18 @@ class Database
       )
     SQL
     
-    # Create classes table
+    # Create gwa_subjects table
     db.execute <<-SQL
-      CREATE TABLE IF NOT EXISTS classes (
+      CREATE TABLE IF NOT EXISTS gwa_subjects (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         user_id INTEGER NOT NULL,
         profile_id INTEGER,
-        name TEXT NOT NULL,
+        subject_name TEXT NOT NULL,
+        units REAL NOT NULL,
+        grade REAL,
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
         FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
         FOREIGN KEY (profile_id) REFERENCES semester_profiles(id) ON DELETE CASCADE
-      )
-    SQL
-    
-    # Create assignments table
-    db.execute <<-SQL
-      CREATE TABLE IF NOT EXISTS assignments (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        class_id INTEGER NOT NULL,
-        name TEXT NOT NULL,
-        weight REAL NOT NULL,
-        score REAL DEFAULT 0,
-        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-        FOREIGN KEY (class_id) REFERENCES classes(id) ON DELETE CASCADE
       )
     SQL
     
@@ -90,9 +79,8 @@ class Database
     SQL
     
     # Create indexes for better performance
-    db.execute "CREATE INDEX IF NOT EXISTS idx_classes_user_id ON classes(user_id)"
-    db.execute "CREATE INDEX IF NOT EXISTS idx_classes_profile_id ON classes(profile_id)"
-    db.execute "CREATE INDEX IF NOT EXISTS idx_assignments_class_id ON assignments(class_id)"
+    db.execute "CREATE INDEX IF NOT EXISTS idx_gwa_subjects_user_id ON gwa_subjects(user_id)"
+    db.execute "CREATE INDEX IF NOT EXISTS idx_gwa_subjects_profile_id ON gwa_subjects(profile_id)"
     db.execute "CREATE INDEX IF NOT EXISTS idx_todos_user_id ON todos(user_id)"
     db.execute "CREATE INDEX IF NOT EXISTS idx_todos_profile_id ON todos(profile_id)"
     db.execute "CREATE INDEX IF NOT EXISTS idx_study_sessions_user_id ON study_sessions(user_id)"
@@ -125,7 +113,7 @@ class Database
         db.execute("UPDATE users SET active_profile_id = ? WHERE id = ?", profile_id, user_id)
         
         # Migrate existing data to this profile
-        db.execute("UPDATE classes SET profile_id = ? WHERE user_id = ? AND profile_id IS NULL", 
+        db.execute("UPDATE gwa_subjects SET profile_id = ? WHERE user_id = ? AND profile_id IS NULL", 
                    profile_id, user_id)
         db.execute("UPDATE todos SET profile_id = ? WHERE user_id = ? AND profile_id IS NULL", 
                    profile_id, user_id)

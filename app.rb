@@ -174,85 +174,69 @@ get '/study-logger' do
   erb :study_logger
 end
 
-# API routes for Grade Calculator
-post '/api/classes' do
+# API routes for GWA Calculator
+get '/api/gwa-subjects' do
+  content_type :json
+  { subjects: get_user_gwa_subjects, gwa: calculate_gwa }.to_json
+end
+
+post '/api/gwa-subjects' do
   content_type :json
   db = Database.get_db
   data = JSON.parse(request.body.read)
   
-  db.execute("INSERT INTO classes (user_id, profile_id, name) VALUES (?, ?, ?)", 
-             current_user['id'], active_profile_id, data['name'])
+  db.execute("INSERT INTO gwa_subjects (user_id, profile_id, subject_name, units, grade) VALUES (?, ?, ?, ?, ?)", 
+             current_user['id'], active_profile_id, data['subject_name'], data['units'], data['grade'])
   
-  class_id = db.last_insert_row_id
-  classes = get_user_classes
-  { success: true, classes: classes }.to_json
+  { success: true, subjects: get_user_gwa_subjects, gwa: calculate_gwa }.to_json
 end
 
-get '/api/classes' do
-  content_type :json
-  { classes: get_user_classes }.to_json
-end
-
-delete '/api/classes/:id' do
+put '/api/gwa-subjects/:id' do
   content_type :json
   db = Database.get_db
-  db.execute("DELETE FROM classes WHERE id = ? AND user_id = ?", 
-             params[:id], current_user['id'])
-  { success: true, classes: get_user_classes }.to_json
-end
-
-post '/api/classes/:class_id/assignments' do
-  content_type :json
-  db = Database.get_db
-  data = JSON.parse(request.body.read)
-  class_id = params[:class_id].to_i
-  
-  # Verify class belongs to user
-  class_record = db.execute("SELECT * FROM classes WHERE id = ? AND user_id = ?", 
-                           class_id, current_user['id']).first
-  return { success: false, error: 'Class not found' }.to_json unless class_record
-  
-  db.execute("INSERT INTO assignments (class_id, name, weight, score) VALUES (?, ?, ?, ?)",
-             class_id, data['name'], data['weight'], data['score'] || 0)
-  
-  { success: true, classes: get_user_classes }.to_json
-end
-
-delete '/api/classes/:class_id/assignments/:assignment_id' do
-  content_type :json
-  db = Database.get_db
-  class_id = params[:class_id].to_i
-  assignment_id = params[:assignment_id].to_i
-  
-  # Verify class belongs to user
-  class_record = db.execute("SELECT * FROM classes WHERE id = ? AND user_id = ?", 
-                           class_id, current_user['id']).first
-  return { success: false, error: 'Class not found' }.to_json unless class_record
-  
-  db.execute("DELETE FROM assignments WHERE id = ? AND class_id = ?", 
-             assignment_id, class_id)
-  
-  { success: true, classes: get_user_classes }.to_json
-end
-
-put '/api/classes/:class_id/assignments/:assignment_id' do
-  content_type :json
-  db = Database.get_db
-  class_id = params[:class_id].to_i
-  assignment_id = params[:assignment_id].to_i
+  id = params[:id].to_i
   data = JSON.parse(request.body.read)
   
-  # Verify class belongs to user
-  class_record = db.execute("SELECT * FROM classes WHERE id = ? AND user_id = ?", 
-                           class_id, current_user['id']).first
-  return { success: false, error: 'Class not found' }.to_json unless class_record
+  # Verify subject belongs to user
+  subject = db.execute("SELECT * FROM gwa_subjects WHERE id = ? AND user_id = ?", 
+                       id, current_user['id']).first
+  return { success: false, error: 'Subject not found' }.to_json unless subject
   
-  if data['score']
-    db.execute("UPDATE assignments SET score = ? WHERE id = ? AND class_id = ?",
-               data['score'], assignment_id, class_id)
+  updates = []
+  values = []
+  
+  if data['subject_name']
+    updates << "subject_name = ?"
+    values << data['subject_name']
   end
   
-  { success: true, classes: get_user_classes }.to_json
+  if data.key?('units')
+    updates << "units = ?"
+    values << data['units']
+  end
+  
+  if data.key?('grade')
+    updates << "grade = ?"
+    values << (data['grade'] ? data['grade'] : nil)
+  end
+  
+  values << id
+  values << current_user['id']
+  
+  db.execute("UPDATE gwa_subjects SET #{updates.join(', ')} WHERE id = ? AND user_id = ?", *values)
+  
+  { success: true, subjects: get_user_gwa_subjects, gwa: calculate_gwa }.to_json
+end
+
+delete '/api/gwa-subjects/:id' do
+  content_type :json
+  db = Database.get_db
+  id = params[:id].to_i
+  
+  db.execute("DELETE FROM gwa_subjects WHERE id = ? AND user_id = ?", 
+             id, current_user['id'])
+  
+  { success: true, subjects: get_user_gwa_subjects, gwa: calculate_gwa }.to_json
 end
 
 # API routes for Todo List
@@ -359,7 +343,7 @@ post '/api/profiles' do
   data = JSON.parse(request.body.read)
   
   db.execute("INSERT INTO semester_profiles (user_id, name, start_date, end_date) VALUES (?, ?, ?, ?)",
-             current_user['id'], data['name'], data['start_date'], data['end_date'])
+             current_user['id'], data['name'], data['start_date'] || nil, data['end_date'] || nil)
   
   profile_id = db.last_insert_row_id
   
@@ -431,22 +415,40 @@ get '/api/profiles/:id/analytics' do
 end
 
 # Helper methods for database queries
-def get_user_classes
+def get_user_gwa_subjects
   db = Database.get_db
-  classes = db.execute("SELECT * FROM classes WHERE user_id = ? AND profile_id = ? ORDER BY created_at DESC", 
-                       current_user['id'], active_profile_id)
+  subjects = db.execute("SELECT * FROM gwa_subjects WHERE user_id = ? AND profile_id = ? ORDER BY created_at DESC", 
+                        current_user['id'], active_profile_id)
+  subjects.map { |s|
+    {
+      'id' => s['id'],
+      'subject_name' => s['subject_name'],
+      'units' => s['units'],
+      'grade' => s['grade'],
+      'created_at' => s['created_at']
+    }
+  }
+end
+
+def calculate_gwa
+  subjects = get_user_gwa_subjects
+  return nil if subjects.empty?
   
-  classes.map do |cls|
-    assignments = db.execute("SELECT * FROM assignments WHERE class_id = ?", cls['id'])
-    cls.merge('assignments' => assignments.map { |a| 
-      {
-        'id' => a['id'],
-        'name' => a['name'],
-        'weight' => a['weight'],
-        'score' => a['score']
-      }
-    })
+  total_units = 0
+  total_weighted_grade = 0
+  
+  subjects.each do |subject|
+    units = subject['units'] || 0
+    grade = subject['grade']
+    
+    if grade && grade > 0
+      total_units += units
+      total_weighted_grade += grade * units
+    end
   end
+  
+  return nil if total_units == 0
+  (total_weighted_grade / total_units).round(2)
 end
 
 def get_user_todos
@@ -497,33 +499,24 @@ end
 def get_profile_analytics(profile_id)
   db = Database.get_db
   
-  # Get classes count and GPA
-  classes = db.execute("SELECT * FROM classes WHERE user_id = ? AND profile_id = ?", 
+  # Get GWA subjects count and GWA
+  subjects = db.execute("SELECT * FROM gwa_subjects WHERE user_id = ? AND profile_id = ?", 
                        current_user['id'], profile_id)
   
-  total_weight = 0
-  weighted_sum = 0
+  total_units = 0
+  total_weighted_grade = 0
   
-  classes.each do |cls|
-    assignments = db.execute("SELECT * FROM assignments WHERE class_id = ?", cls['id'])
-    if assignments.length > 0
-      class_weight = 0
-      class_sum = 0
-      assignments.each do |a|
-        weight = a['weight'] || 0
-        score = a['score'] || 0
-        class_sum += score * weight
-        class_weight += weight
-      end
-      if class_weight > 0
-        class_grade = class_sum / class_weight
-        weighted_sum += class_grade
-        total_weight += 1
-      end
+  subjects.each do |subject|
+    units = subject['units'] || 0
+    grade = subject['grade']
+    
+    if grade && grade > 0
+      total_units += units
+      total_weighted_grade += grade * units
     end
   end
   
-  avg_gpa = total_weight > 0 ? weighted_sum / total_weight : 0
+  gwa = total_units > 0 ? (total_weighted_grade / total_units).round(2) : nil
   
   # Get todos count
   todos = db.execute("SELECT * FROM todos WHERE user_id = ? AND profile_id = ?", 
@@ -536,8 +529,8 @@ def get_profile_analytics(profile_id)
   total_study_hours = sessions.first['total_hours'] || 0
   
   {
-    'classes_count' => classes.length,
-    'avg_gpa' => avg_gpa.round(1),
+    'subjects_count' => subjects.length,
+    'gwa' => gwa,
     'todos_count' => todos.length,
     'completed_todos' => completed_todos,
     'total_study_hours' => total_study_hours.round(1)
