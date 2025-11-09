@@ -1,0 +1,70 @@
+# Ruby
+*.gem
+*.rbc
+/.config
+/coverage/
+/InstalledFiles
+/pkg/
+/spec/reports/
+/spec/examples.txt
+/test/tmp/
+/test/version_tmp/
+/tmp/
+
+# Documentation
+/.yardoc/
+/_yardoc/
+/doc/
+/rdoc/
+
+# Environment variables
+.env
+.env.local
+.env.*.local
+
+# Bundler
+/.bundle/
+/vendor/bundle
+/lib/bundler/man/
+
+# RVM / rbenv / rbfu
+.rvmrc
+.ruby-version
+.ruby-gemset
+
+# IDEs
+/.idea/
+/.vscode/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Logs
+*.log
+/log/*.log
+
+# OS files
+Thumbs.db
+.DS_Store
+
+# Rails specific (if using Rails)
+/db/*.sqlite3
+/db/*.sqlite3-journal
+/db/*.sqlite3-*
+/public/system
+/public/uploads
+/public/assets
+.byebug_history
+/config/master.key
+
+# Spring
+/spring/*.pid
+
+# Node modules (if using Node.js alongside Ruby)
+node_modules/
+
+# Temporary files
+*.tmp
+*.temp
+
