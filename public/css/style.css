@@ -1238,7 +1238,9 @@ body {
 
 .profile-card.active {
     background: #ffffff;
-    border-color: rgb(231, 0, 12);
+    border: 2px solid;
+    border-image-source: linear-gradient(151.14deg, #FF5500 0%, #3115A6 100.04%);
+    border-image-slice: 1;
     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
 }
 
@@ -1306,7 +1308,7 @@ body {
 }
 
 .profile-analytics .stat-label {
-    font-size: 12px;
+    font-size: 16px;
     color: #666;
     font-weight: 500;
 }
